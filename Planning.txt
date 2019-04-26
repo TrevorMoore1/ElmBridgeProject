@@ -1,0 +1,33 @@
+Proposal 1
+
+Goals: Input a bidding system
+Use the bidding system
+Simulating hands, finding places system fails
+
+Extra steps: Implement double dummy
+Maintain list of kinds of hands partner could have
+
+
+Aspects of the projects using previous experience
+Inputs clicking signals
+Random hand generation
+Trees and Lists for storing the bidding system
+
+Additional Tools: More graphics to help with the bidding interface
+
+
+Proposal 2
+
+Goals: Bid back and forth between 4 people
+Possibly also do play
+
+Additional Tools: Communication between different devices
+
+Random generation
+Clicking signals
+
+Extra Steps: Notes added on to bids and cards
+Chat
+
+
+
