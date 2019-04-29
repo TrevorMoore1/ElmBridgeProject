@@ -14,16 +14,12 @@ Proposal 1
 
 Proposal 2
 
-Goals: Bid back and forth between 4 people
-Possibly also do play
+  The main goal of this project is to create a program that will allow four players to play bridge with each other over the course of a extended period of time. Each hand of bridge can be broken into two segments, usually called the "auction" and the "play". While the play requires a fair amount of memory work, and must therefore take place within just a few minutes, the auction can proceed as slowly as possible without inducing any memory strain. Playing in person, of course, both the auction and play occur relatively quickly. Unfortunately, nearly all available bridge software nowadays is modeled after this, meaning that players cannot, say, bid an auction at the rate of one bid per hour (seeing as all players are required to be present at the virtual table).
 
-Additional Tools: Communication between different devices
+  We hope to create software that will allow either single partnerships or two partnerships as opponents to bid sporadically over an extended period of time, with or without any time constraints. To understand this, picture the difference between face-to-face Scrabble, and Words with Friends. We hope that allowing players more time to think between bids will lead to better judgement and system understanding, if not just convenience.
 
-Random generation
-Clicking signals
+  The relevant aspects of Elm that we have learned in class will be similar to those in our first proposal. Random number generation (permutations, specifically) for dealing the hands, clickable buttons and subscriptions for the auction interface, and simple lists for storing auction histories. As in our first proposal, learning more about graphics libraries would probably help.
 
-Extra Steps: Notes added on to bids and cards
-Chat
+  The main Elm functionality that we would need to explore for the first time would be synchronization between users. When each user reloads the page, possibly after a long period of time, the updated auction would need to be displayed. We are unsure of how this would best be approached, as a standard single-server model might be difficult to implement given that we hope to not require any users to keep their devices on at all times. Even this model would require some Elm learning, though.
 
-
-
+  Apart from the main challenge of inter-device synchronization, we expect this project proposal to be relatively simple. We've identified three areas of possible expansion. (1) We might add chat features to the product, either between all players or just partners. (2) We might add the play of the hand, which would need to take place over a shorter period of time and would not add to existing bridge software, but would at least allow for better result analysis. (3) We might add a note-taking feature to both bids in the auction and cards played. Seeing as each hand could take place over many hours, players could forget their thoughts and concerns about agreements, and would be able to document these without giving unauthorized information to their partners during the hand.
