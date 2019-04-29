@@ -1,19 +1,15 @@
 Proposal 1
 
-Goals: Input a bidding system
-Use the bidding system
-Simulating hands, finding places system fails
+  This project aims to create a program that will aid in bidding system design for the card game Bridge, and allow a player to practice bidding their system with the computer. In Bridge, a deck of cards is dealt between 4 players, two pairs of partners, and the partners must bid to right contract without bidding too high. They are only allowed to communicate through their bids, so they agree on certain meanings to assign to bids, different from what is said formally with the bid. Thus players create varying bidding systems, which are map bids to possible hand types, or equivalently, agreements with their partner for how to bid in various situations. 
+  
+  The program created by this project will allow the user to input their system through an interface in which they specify after each sequence of bidding what to bid next depending on hand type. This will be stored internally as a tree-like structure where each bid has an associated hand type and a list of children that are the bids that follow. The bidding system will not need to input all at once and can be updated and edited as the user further refines it over a long period of time. The program will deal random hands and can bid with the user, using the bidding rules that they specified. It will also have the capability to quickly simulate both sides of the bidding for many hands and determine where there are errors, such as hand types with no bid or multiple bids defined. 
+  
+  The most challenging part of this project will be designing and implementing the interface for the user to input their bidding system. We would need to decide what kinds of conditions the user is allowed to have on what constitutes a different hand type. The conditions need to be specific enough to allow the user to define their bids properly but also general enough that it does not take too long to define a bid. It will likely often come up that will be categories of bids that are a specific “OR” of different hand shapes and it would be important to design an interface that minimizes the need to input long expressions that come up over and over again. In general, we want the interface to feel intuitive and easy to use.
+  
+  We would use several of the things we have learned in class including random number generation for the hands, clickable buttons and subscriptions to design the interface, lists and trees for storing the system, and how to save data so persists after page reload. We wouldn’t need to learn too much more beyond what we have learned in class, although I think learning more about graphics libraries to help with the interface would be useful.
+  
+  Additionally, we have a few ways to expand the project if needed. One would be to implement “double dummy”, which means to determine the optimal play of the hand if the players could see all the cards. This would allow the program to in addition to seeing if there is a bid defined for a hand, would also allow to do some degree of evaluation of whether a bid was good or not. Another possibility is to in addition to following rules about what to bid itself, the program would also be able to interpret their partner’s bids. It would maintain some sort of list containing possible hands their partner could have and potentially use this in order to help bid in some situations.
 
-Extra steps: Implement double dummy
-Maintain list of kinds of hands partner could have
-
-
-Aspects of the projects using previous experience
-Inputs clicking signals
-Random hand generation
-Trees and Lists for storing the bidding system
-
-Additional Tools: More graphics to help with the bidding interface
 
 
 Proposal 2
