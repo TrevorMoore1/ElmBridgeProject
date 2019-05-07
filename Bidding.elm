@@ -1,5 +1,5 @@
 type alias Bid = (Int, Suit)
-type Suit = Spade | Heart | Diamond | Club
+type Suit = Spade | Heart | Diamond | Club | NoTrump | Pass
 type alias Points = Int
 type alias Shape = {spades   : Int,
                     hearts   : Int,
@@ -12,14 +12,24 @@ type alias BidDefinition = {requirements   : List HandType,
 type alias BiddingRules = List BidDefinition
 type alias BidSequence = List Bid
 
-defineBid : BiddingRules -> BidSequence -> List HandType -> Bid -> BiddingRules
-defineBid : 
+defineBid : BiddingRules -> BidSequence -> List HandType -> Maybe BiddingRules
+defineBid system previousBids requirements =
+    case previousBids of
+        []               -> Nothing
+        lastBid::[]      -> Just ({requirements = }::system)
+        firstBid::(rest) -> case findBid system firstBid of
+            Just subsequentBids -> defineBid subsequentBids rest requirements bid
+            Nothing -> Nothing
+                
+
+prioritizeBid : BiddingRules -> BidSequence -> BiddingRules
+prioritizeBid system previousBids =
 
 removeBid : BiddingRules -> BidSequence -> BiddingRules
 
 
 makeBid : BiddingRules -> HandType -> Maybe (Bid, BiddingRules)
-makeBid : nextBids hand =
+makeBid nextBids hand =
     case nextBids of
         []                  -> Nothing
         priorityBid::rest   ->  if correctBid priorityBid hand 
@@ -36,3 +46,11 @@ correctBid bid hand =
                         then True
                         else correctBid (rest, bid.bidValue, bid.subsequentBids) hand
 
+findBid : BiddingRules -> Bid -> Maybe BiddingRules
+findBid bidList bid =
+    case bidList of
+        [] -> Nothing
+        priorityBid::rest ->    if bid.bidValue == prioirtyBid.bidValue
+                                then Just priorityBid.subsequentBids
+                                else findBid rest bid
+            
