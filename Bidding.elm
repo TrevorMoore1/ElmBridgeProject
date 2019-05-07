@@ -1,5 +1,5 @@
 type alias Bid = (Int, Suit)
-// Raphael doesn't know how to code
+// Trevor doesn't know how to code
 type Suit = Spade | Heart | Diamond | Club
 type alias Points = Int
 type alias Shape = {spades   : Int,
