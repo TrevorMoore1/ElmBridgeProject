@@ -34,14 +34,20 @@ defineBid system history bidMeaning =
                 Nothing -> Nothing
                 
 -- Input: a system, a history (with last bid being the one we want to prioritize)
--- Output: a system
-prioritizeBid : BiddingRules -> BidSequence -> BiddingRules
+-- Output: a system, if the input history exists
+prioritizeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
 prioritizeBid system previousBids =
     Debug.todo "TODO"
 
+--Input: a system, a history (with last bid being the one we want to deprioritize)
+--Output: a system, if the input history exists
+deprioritizeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
+deprioritizeBid system previousBids =
+    Debug.todo "TODO"
+
 -- Input: a system, a history (with last bid being the one we want to remove)
--- Output: the system, minus the last bid
-removeBid : BiddingRules -> BidSequence -> BiddingRules
+-- Output: the system, minus the last bid, if the input history exists
+removeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
 removeBid system history =
     Debug.todo "TODO"
 
@@ -88,3 +94,47 @@ handInRange hand range =
     && hand.spades <= Tuple.second(range.clubs)
     && hand.spades >= Tuple.first(range.points)
     && hand.spades <= Tuple.second(range.points)
+
+--Input: a system, a sequence of bidding
+--Output: the system following that sequence, if it is defined
+traverseSystem : Maybe BiddingRules -> BidSequence -> Maybe BiddingRules
+traverseSystem maybeSystem history =
+ case (maybeSystem, history) of
+    (Nothing, _) -> Nothing
+    (Just system, []) -> Just system    
+    (Just system, firstBid::rest) -> case getNextBids system firstBid of
+                Just subsequentBids -> traverseSystem (Just subsequentBids) rest
+                Nothing -> Nothing
+
+--Input: A bid
+--Output: A string denoting that bid
+bidToString : Bid -> String
+bidToString (number, suit) =
+ case suit of
+    Spade -> String.fromInt number ++ "S"
+    Heart -> String.fromInt number ++ "H"
+    Diamond -> String.fromInt number ++ "D"
+    Club -> String.fromInt number ++ "C"
+    NoTrump -> String.fromInt number ++ "N"
+    Pass -> "Pass"
+
+--Inverse of the above function
+stringToBid : String -> Maybe Bid
+stringToBid string =
+    if string == "Pass" || string == "pass" then Just (0, Pass)
+    else case (String.toInt (String.left 1 string)) of
+        Just int ->
+         case (String.dropLeft 1 string) of
+             "S" -> Just (int, Spade)
+             "H" -> Just (int, Heart)
+             "D" -> Just (int, Diamond)
+             "C" -> Just (int, Club)
+             "N" -> Just (int, NoTrump)
+             "NT" -> Just (int, NoTrump)
+             _ -> Nothing
+        Nothing -> Nothing
+
+--Input: A string of bids of the form "1C-1H-1N-2N"
+--Output: A BidSequence
+stringToSequence : String -> BidSequence
+stringToSequence string = List.filterMap (stringToBid) (String.split "-" string)
