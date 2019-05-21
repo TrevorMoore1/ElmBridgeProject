@@ -66,7 +66,8 @@ cardSuitString card =
 
 cardRankString : Card -> String
 cardRankString card =
-  if card.rank < 9 then String.fromInt (card.rank + 2)
+  if card.rank < 8 then String.fromInt (card.rank + 2)
+  else if card.rank == 8 then "T"
   else if card.rank == 9 then "J"
   else if card.rank == 10 then "Q"
   else if card.rank == 11 then "K"
@@ -117,13 +118,12 @@ displayHand hand =
       heartString = List.foldl (++) "" heartsRankStrings
       diamondString = List.foldl (++) "" diamondsRankStrings
       clubString = List.foldl (++) "" clubsRankStrings in
-  "S" ++ spadeString ++ " H" ++ heartString ++ " D" ++ diamondString ++ " C" ++ clubString ++ "\n"
+  "S" ++ spadeString ++ " H" ++ heartString ++ " D" ++ diamondString ++ " C" ++ clubString
 
 -- controller function for printing a full deal, given a seed
-newDeal : Int -> String
+newDeal : Int -> List String
 newDeal seed =
-  List.foldl (++) ""
-    (List.map displayHand
+  List.map displayHand
       (List.map sortCardsByRank
         (List.map (sortCardsBySuit {spades=[], hearts=[], diamonds=[], clubs=[]})
-          (handRecords (separate (shuffle seed))))))
+          (handRecords (separate (shuffle seed)))))
