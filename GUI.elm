@@ -1,5 +1,6 @@
 module GUI exposing (main)
 
+import Bidding exposing (..)
 import Deal exposing (Card, shuffle, separate, handRecords, newDeal)
 import Browser
 import Html exposing (Html)
@@ -12,18 +13,22 @@ import Time exposing (..)
 
 -- MODEL
 
+type Location = BidPractice | Loc BidSequence
+
 type alias Model = {nextSeed : Int,
                     currentBid : Int,
                     xAllowed : Bool,
                     xxAllowed : Bool,
-                    passes : Int}
+                    passes : Int,
+                    location : Location}
 -- Suited bids are #0-34, then X, XX, P
 
 initModel = {   nextSeed = 0, 
                 currentBid = -1, 
                 xAllowed = False, 
                 xxAllowed = False,
-                passes = 0}
+                passes = 0,
+                location = BidPractice}
 
 
 -- UPDATE
@@ -32,6 +37,8 @@ type Msg =
     RequestTime
   | ReceiveTime Posix
   | NewBid Int
+  | PracticeMode
+  | EditMode
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -40,37 +47,45 @@ update msg model =
     ReceiveTime time ->
         let {nextSeed} = model in
         let newSeed = Time.posixToMillis time in
-        ({nextSeed = newSeed, currentBid = -1, xAllowed = False, xxAllowed = False, passes = 0}, Cmd.none)
+        ({nextSeed = newSeed, currentBid = -1, xAllowed = False, xxAllowed = False, passes = 0, location = BidPractice}, Cmd.none)
     NewBid bid ->
         let {nextSeed, currentBid, xAllowed, xxAllowed, passes} = model in
         case bid of
-            35 -> ({nextSeed = nextSeed, currentBid = currentBid, xAllowed = False, xxAllowed = True, passes = 0}, Cmd.none)
-            36 -> ({nextSeed = nextSeed, currentBid = currentBid, xAllowed = False, xxAllowed = False, passes = 0}, Cmd.none)
-            37 -> ({nextSeed = nextSeed, currentBid = currentBid, xAllowed = xAllowed, xxAllowed = xxAllowed, passes = passes + 1}, Cmd.none)
-            _ -> ({nextSeed = nextSeed, currentBid = bid, xAllowed = True, xxAllowed = False, passes = 0}, Cmd.none)
+            35 -> ({model | xAllowed = False, xxAllowed = True, passes = 0}, Cmd.none)
+            36 -> ({model | xAllowed = False, xxAllowed = False, passes = 0}, Cmd.none)
+            37 -> ({model | passes = passes + 1}, Cmd.none)
+            _ -> ({model | currentBid = bid, xAllowed = True, xxAllowed = False, passes = 0}, Cmd.none)
+    PracticeMode ->
+        ({model | location = BidPractice}, Cmd.none)
+    EditMode ->
+        ({model | location = Loc []}, Cmd.none)
 
 
 -- VIEW
 
 view : Model -> Html Msg
 view model =
-  let {nextSeed} = model in
-  let redeal = Html.button [onClick RequestTime] [Html.text "Redeal"] in
-  let availableBids = bidDisplay model in
-  let handString = Deal.newDeal nextSeed in
-  let display = Html.text (List.foldr (++) "" handString) in
-  let time = Html.text (String.fromInt nextSeed) in
-  let monoStyle = Html.Attributes.style "font-family" "courier" in
-  case handString of
-    n :: e :: s :: w :: [] ->
-                  Html.div [] ([redeal,
-                                Html.br [] [],
-                               Html.div [monoStyle] [Html.text n],
-                               Html.div [monoStyle] [Html.text e],
-                               Html.div [monoStyle] [Html.text s],
-                               Html.div [monoStyle] [Html.text w]]
-                               ++ availableBids)
-    _ -> Debug.todo "view failed"
+    case model.location of
+        BidPractice -> 
+            let {nextSeed} = model in
+            let redeal = Html.button [onClick RequestTime] [Html.text "Redeal"] in
+            let bidPractice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
+            let edit = Html.button [] [Html.text "Edit System"] in
+            let availableBids = bidDisplay model in
+            let handString = Deal.newDeal nextSeed in
+            let monoStyle = Html.Attributes.style "font-family" "courier" in
+            case handString of
+                n :: e :: s :: w :: [] ->
+                    Html.div [] ([  Html.div [] [bidPractice, edit],
+                                    redeal, 
+                                    Html.div [monoStyle] [Html.text n],
+                                    Html.div [monoStyle] [Html.text e],
+                                    Html.div [monoStyle] [Html.text s],
+                                    Html.div [monoStyle] [Html.text w]]
+                                    ++ availableBids)
+                _ -> Debug.todo "view failed"
+        Loc bidSequence ->
+            Debug.todo "TODO"
 
 
 makeBidButton : Int -> Html Msg
