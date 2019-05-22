@@ -39,6 +39,7 @@ type Msg =
   | ReceiveTime Posix
   | BidsMade BidSequence
   | DisplayExplanation String
+  | ChangeBiddingSequence BidSequence
   | Goto Location
   | UpdateSystem (Maybe BiddingRules)
   | NoUpdate
@@ -58,6 +59,9 @@ update msg model =
             (level, _)::rest -> ({model | passes = 0, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             _ -> (model, Cmd.none)
     DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
+    ChangeBiddingSequence bids ->
+        ({model | bidSequence = bids}, Cmd.none)
+    --ChangeBiddingSequence overwrites the previous sequence, BidsMade adds to it
     Goto newLocation -> ({model | passes = 0, location = newLocation, bidSequence = []}, Cmd.none)
     UpdateSystem maybeSystem ->
         case maybeSystem of
@@ -97,10 +101,11 @@ view model =
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
-            let buttonList = Html.button [onClick (Goto Edit)] [Html.text "Begin"]::(makeButtonList [] model.bidSequence) in
+            let buttonList = Html.button [onClick (ChangeBiddingSequence [])] [Html.text "Begin"]::(makeButtonList [] model.bidSequence) in
             let searchBox = Html.textarea [onInput searchBoxFunction] [] in
             let instructions = Html.p [] [Html.text "Create new bid"] in
             --let debugMessage = Html.p [] [Html.text model.debug] in
+            --let debugMessage = Html.textarea [] [Html.text (getLowerPoint model.system [(1,Spade)])] in
             let newBidBox = [Html.textarea [onInput (newBidFunction model.system model.bidSequence)] []] in
             --let newBidBox = [Html.textarea [onInput DebugString] []] in
             let nextBids = displayNextBids model.system model.bidSequence in
@@ -227,7 +232,7 @@ suitToInt suit =
 searchBoxFunction : String -> Msg
 searchBoxFunction string =
   case String.right 1 string of
-    "\n" -> BidsMade (stringToSequence (String.dropRight 1 string))
+    "\n" -> ChangeBiddingSequence (stringToSequence (String.dropRight 1 string))
       
     _ -> NoUpdate
       
@@ -235,7 +240,7 @@ makeButtonList : BidSequence -> BidSequence -> List (Html Msg)
 makeButtonList prevBids futureBids =
   case futureBids of
    [] -> [] 
-   bid::rest -> Html.button [onClick (BidsMade (prevBids++[bid]))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
+   bid::rest -> Html.button [onClick (ChangeBiddingSequence (prevBids++[bid]))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
 
 displayNextBids : BiddingRules -> BidSequence -> List (Html Msg)
 displayNextBids system history =
@@ -248,7 +253,7 @@ newBidFunction system history string =
   case String.right 1 string of
     "\n" -> case stringToBid (String.dropRight 1 string) of
       Nothing -> NoUpdate
-      Just bid -> (UpdateSystem (defineBid system (history++[bid]) []))
+      Just bid -> (UpdateSystem (defineBid system (history++[bid]) [allHands]))
       --Just bid -> (DebugString (bidToString bid))
       --Just bid -> (UpdateSystem (Just (testSystem bid)))
       
@@ -256,16 +261,55 @@ newBidFunction system history string =
       
 displayBid : BiddingRules -> BidSequence -> BidDefinition -> Html Msg
 displayBid system history (BidDefinition bid) =
- let followingBids = Html.button [onClick (BidsMade (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
- let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system history))] [Html.text ("Increase Priority")] in
- let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system history))] [Html.text ("Decrease Priority")] in
- let modify = Html.button [] [Html.text "Modify"] in
- let delete = Html.button [onClick (UpdateSystem (removeBid system history))] [Html.text "Delete Bid"] in
- Html.div [] [followingBids, modify, prioritize, deprioritize, delete]
+ let newHistory = history ++ [bid.bidValue] in
+ let followingBids = Html.button [onClick (ChangeBiddingSequence (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
+ let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system (history++[bid.bidValue])))] [Html.text ("Increase Priority")] in
+ let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system (history++[bid.bidValue])))] [Html.text ("Decrease Priority")] in
+ --let modify = Html.button [] [Html.text "Modify"] in
+ let pointRow =  Html.div [] [Html.text "Points:",
+                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerPointTo (String.toInt string))))] [Html.text (getLowerPoint system newHistory)],
+                 Html.text "to",
+                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system history (editUpperPointTo (String.toInt string))))] [Html.text (getUpperPoint system newHistory)]] in
+ let spadeRow = Html.div [] [Html.text "Spades:"] in
+ let heartRow = Html.div [] [Html.text "Hearts:"] in
+ let diamondRow = Html.div [] [Html.text "Diamonds:"] in
+ let clubRow = Html.div [] [Html.text "Clubs:"] in
+ let meaningTable = Html.div [] [pointRow, spadeRow, heartRow, diamondRow, clubRow]  in
+ let delete = Html.button [onClick (UpdateSystem (removeBid system (history++[bid.bidValue])))] [Html.text "Delete Bid"] in
+ Html.div [] [followingBids, meaningTable, prioritize, deprioritize, delete]
  --Html.div [] [followingBids, modify]
 
 testSystem : Bid -> BiddingRules
 testSystem bid = [BidDefinition {requirements = [], bidValue = (1, Spade), subsequentBids = []}]
+
+editLowerPointTo : Maybe Int -> List HandRange -> Maybe (List HandRange)
+editLowerPointTo maybeLowerBound handRangeList =
+    case (maybeLowerBound, handRangeList) of
+        (Just lowerBound, handRange::rest) -> let (prevPointMin, prevPointMax) = handRange.points in Just ({handRange | points = (lowerBound, prevPointMax)}::rest)
+        _ -> Nothing
+
+editUpperPointTo : Maybe Int -> List HandRange -> Maybe (List HandRange)
+editUpperPointTo maybeUpperBound handRangeList =
+    case (maybeUpperBound, handRangeList) of
+        (Just upperBound, handRange::rest) -> let (prevPointMin, prevPointMax) = handRange.points in Just ({handRange | points = (prevPointMin, upperBound)}::rest)
+        _ -> Nothing           
+
+getLowerPoint : BiddingRules -> List Bid -> String
+getLowerPoint system history =
+    case getBid system history of
+        Nothing -> ""
+        Just (BidDefinition bid) -> case bid.requirements of
+            [] -> ""
+            meaning::rest -> let (lowerPoint, upperPoint) = meaning.points in String.fromInt lowerPoint
+
+getUpperPoint : BiddingRules -> List Bid -> String
+getUpperPoint system history =
+    case getBid system history of
+        Nothing -> ""
+        Just (BidDefinition bid) -> case bid.requirements of
+            [] -> ""
+            meaning::rest -> let (lowerPoint, upperPoint) = meaning.points in String.fromInt upperPoint
+            
 
 -- SUBSCRIPTIONS
 
