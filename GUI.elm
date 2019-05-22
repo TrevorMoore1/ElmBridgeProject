@@ -84,20 +84,22 @@ view model =
             let edit = Html.button [onClick (Goto Edit)] [Html.text "Edit System"] in
             let availableBids = bidDisplay model in
             let handString = Deal.newDeal model.nextSeed in
+            let myHandString = 
+                    case List.head handString of
+                        Nothing -> Debug.todo "myHandString error"
+                        Just myHand -> myHand in
+
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
-            case handString of
-                n :: e :: s :: w :: [] ->
-                    Html.div [] ([  Html.div [] [practice, edit],
+            Html.div [] ([  Html.div [] [practice, edit],
                                     redeal,
-                                    Html.div [monoStyle] [Html.text n],
-                                    Html.div [monoStyle] [Html.text e],
-                                    Html.div [monoStyle] [Html.text s],
-                                    Html.div [monoStyle] [Html.text w]]
+                                    Html.div [] [Html.br [] []],
+                                    Html.div [monoStyle] [Html.text myHandString],
+                                    Html.div [] [Html.br [] []]]
                                     ++ availableBids
+                                    ++ [Html.br [] []]
                                     ++ [bidsMadeButtons]
                                     ++ [Html.p [] [Html.text model.bidExplanation]])
-                _ -> Debug.todo "view failed"
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
@@ -138,40 +140,42 @@ makeBidsMadeButtons model bidSequence =
             :: (makeBidsMadeButtons model rest)
 
 
-makeBidBoxButton : Bid -> Html Msg
-makeBidBoxButton bid =
+makeBidBoxButton : Bid -> Model -> Html Msg
+makeBidBoxButton bid model =
     let color = 
             case Tuple.second bid of
                 Heart -> "red"
                 Diamond -> "red"
                 _ -> "black" in
     let stringBid = bidToString bid in
-    Html.button [onClick (BidsMade [bid])] 
-                [Html.div [] [  Html.span [] [Html.text (String.left 1 stringBid)],
-                                Html.span [Html.Attributes.style "color" color] [Html.text (String.dropLeft 1 stringBid)]]]
+    Html.button [   onClick (BidsMade [bid]),
+                    onMouseOver (DisplayExplanation (explanationToString bid (model.bidSequence ++ [bid]) model.system)),
+                    onMouseLeave (DisplayExplanation "")] 
+                [Html.div [] [Html.span [] [Html.text (String.left 1 stringBid)],
+                              Html.span [Html.Attributes.style "color" color] [Html.text (String.dropLeft 1 stringBid)]]]
 
 makeBidBoxButtonInvis : Bid -> Html Msg
 makeBidBoxButtonInvis bid =
     Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text (bidToString bid)]
 
-attachBidBoxButtons : List (Bid, Bool) -> List (Html Msg)
-attachBidBoxButtons bids =
+attachBidBoxButtons : List (Bid, Bool) -> Model -> List (Html Msg)
+attachBidBoxButtons bids model =
     case bids of
         [] -> []
         (bid, allowed) :: rest ->
             if allowed 
-                then (makeBidBoxButton bid) :: attachBidBoxButtons rest
-            else (makeBidBoxButtonInvis bid) :: attachBidBoxButtons rest 
+                then (makeBidBoxButton bid model) :: attachBidBoxButtons rest model
+            else (makeBidBoxButtonInvis bid) :: attachBidBoxButtons rest model
 
 bidDisplay : Model -> List (Html Msg)
 bidDisplay model =
     let makeTupleFunc = (\bid -> (bid, isBidAllowed bid model)) in
-    let attachFunc = (\i -> attachBidBoxButtons (List.map makeTupleFunc [(i,Club),(i,Diamond),(i,Heart),(i,Spade),(i,NoTrump)])) in
+    let attachFunc = (\i -> attachBidBoxButtons (List.map makeTupleFunc [(i,Club),(i,Diamond),(i,Heart),(i,Spade),(i,NoTrump)]) model) in
     let divFunc = (\lev -> Html.div [] lev) in
     let pass = 
             case model.bidSequence of
-                [] -> attachBidBoxButtons (List.map makeTupleFunc [(0,Pass)])
-                _ -> attachBidBoxButtons (List.map makeTupleFunc [(8,Pass)]) in
+                [] -> attachBidBoxButtons (List.map makeTupleFunc [(0,Pass)]) model
+                _ -> attachBidBoxButtons (List.map makeTupleFunc [(8,Pass)]) model in
     ((List.range 1 7)
         |> List.map attachFunc
         |> List.map divFunc)
