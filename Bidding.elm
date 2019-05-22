@@ -29,27 +29,65 @@ defineBid system history bidMeaning =
         []               -> Nothing
         lastBid::[]      -> Just ((BidDefinition{requirements = bidMeaning, bidValue = lastBid, subsequentBids = []})::system)
         firstBid::rest -> 
-            case getNextBids system firstBid of
-                Just subsequentBids -> defineBid subsequentBids rest bidMeaning
+            case getNextBids system firstBid [] of
+                Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case defineBid foundBid.subsequentBids rest bidMeaning of
+                    Just subSystem -> Just (higherPriorityBids ++ [BidDefinition {foundBid | subsequentBids = subSystem}] ++ lowerPriorityBids)
+                        
+                    Nothing -> Nothing
+                         
                 Nothing -> Nothing
                 
 -- Input: a system, a history (with last bid being the one we want to prioritize)
 -- Output: a system, if the input history exists
 prioritizeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
-prioritizeBid system previousBids =
-    Debug.todo "TODO"
+prioritizeBid system history =
+    case history of
+        [] -> Nothing
+        lastBid::[] -> case getNextBids system lastBid [] of
+            Just (higherPriorityBids, foundBid, lowerPriorityBids) -> Just (List.reverse (List.drop 1 (List.reverse higherPriorityBids)) ++ [foundBid] ++ List.reverse (List.take 1 (List.reverse higherPriorityBids)) ++ lowerPriorityBids)
+            Nothing -> Nothing 
+        firstBid::rest ->
+            case getNextBids system firstBid [] of
+                Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case prioritizeBid foundBid.subsequentBids rest of
+                    Just subSystem -> Just (higherPriorityBids ++ [BidDefinition {foundBid | subsequentBids = subSystem}] ++ lowerPriorityBids)
+                    Nothing -> Nothing
+                Nothing -> Nothing
+                    
 
 --Input: a system, a history (with last bid being the one we want to deprioritize)
 --Output: a system, if the input history exists
 deprioritizeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
-deprioritizeBid system previousBids =
-    Debug.todo "TODO"
+deprioritizeBid system history = 
+    case history of
+        [] -> Nothing
+        lastBid::[] -> case getNextBids system lastBid [] of
+            Just (higherPriorityBids, foundBid, lowerPriorityBids) -> Just (higherPriorityBids ++ List.take 1 lowerPriorityBids ++ [foundBid] ++ List.drop 1 lowerPriorityBids)
+            Nothing -> Nothing
+        firstBid::rest ->
+            case getNextBids system firstBid [] of
+                Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case deprioritizeBid foundBid.subsequentBids rest of
+                    Just subSystem -> Just (higherPriorityBids ++ [BidDefinition {foundBid | subsequentBids = subSystem}] ++ lowerPriorityBids)
+                    Nothing -> Nothing
+                Nothing -> Nothing
+                    
 
 -- Input: a system, a history (with last bid being the one we want to remove)
 -- Output: the system, minus the last bid, if the input history exists
 removeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
 removeBid system history =
-    Debug.todo "TODO"
+    case history of
+        [] -> Nothing
+        lastBid::[] -> case getNextBids system lastBid [] of
+            Just (higherPriorityBids, _, lowerPriorityBids) -> Just (higherPriorityBids ++ lowerPriorityBids)
+            Nothing -> Nothing
+        firstBid::rest ->
+            case getNextBids system firstBid [] of
+                Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case removeBid foundBid.subsequentBids rest of
+                    Just subSystem -> Just (higherPriorityBids ++ [BidDefinition {foundBid | subsequentBids = subSystem}] ++ lowerPriorityBids)
+                    Nothing -> Nothing
+                Nothing -> Nothing
+                    
+            
 
 
 -- Input: a system, current handtype
@@ -72,13 +110,14 @@ correctBid (BidDefinition bid) hand =
 
 -- Input: a system, a bid
 -- Output: 
-getNextBids : BiddingRules -> Bid -> Maybe BiddingRules
-getNextBids bidList bid =
+getNextBids : BiddingRules -> Bid -> List BidDefinition -> Maybe (List BidDefinition, BidDefinition, List BidDefinition)
+getNextBids bidList bid previousBids =
     case bidList of
         [] -> Nothing
-        (BidDefinition priorityBid)::rest ->    if bid == priorityBid.bidValue
-                                then Just priorityBid.subsequentBids
-                                else getNextBids rest bid
+        (priorityBid)::rest -> let (BidDefinition unwrappedPriorityBid) = priorityBid in   
+                                if bid == unwrappedPriorityBid.bidValue
+                                then Just (previousBids, priorityBid, rest)
+                                else getNextBids rest bid (priorityBid::previousBids)
 
 -- Input: current hand, candidate range
 -- Output: whether the hand fits the range
@@ -102,8 +141,8 @@ traverseSystem maybeSystem history =
  case (maybeSystem, history) of
     (Nothing, _) -> Nothing
     (Just system, []) -> Just system    
-    (Just system, firstBid::rest) -> case getNextBids system firstBid of
-                Just subsequentBids -> traverseSystem (Just subsequentBids) rest
+    (Just system, firstBid::rest) -> case getNextBids system firstBid [] of
+                Just (_, BidDefinition foundBid, _) -> traverseSystem (Just foundBid.subsequentBids) rest
                 Nothing -> Nothing
 
 --Input: A bid
