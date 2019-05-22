@@ -13,7 +13,7 @@ import Time exposing (..)
 
 -- MODEL
 
-type Location = BidPractice | Loc BidSequence
+type Location = Practice BidSequence | Edit BidSequence
 
 type alias Model = {nextSeed : Int,
                     currentBid : Int,
@@ -29,7 +29,7 @@ initModel = {   nextSeed = 0,
                 xAllowed = False, 
                 xxAllowed = False,
                 passes = 0,
-                location = BidPractice,
+                location = Practice [],
                 system = []}
 
 
@@ -72,16 +72,16 @@ update msg model =
 view : Model -> Html Msg
 view model =
     case model.location of
-        BidPractice -> 
+        Practice bidSequence -> 
             let redeal = Html.button [onClick RequestTime] [Html.text "Redeal"] in
-            let bidPractice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
-            let edit = Html.button [onClick (Goto (Loc []))] [Html.text "Edit System"] in
+            let practice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
+            let edit = Html.button [onClick (Goto (Edit []))] [Html.text "Edit System"] in
             let availableBids = bidDisplay model in
             let handString = Deal.newDeal model.nextSeed in
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             case handString of
                 n :: e :: s :: w :: [] ->
-                    Html.div [] ([  Html.div [] [bidPractice, edit],
+                    Html.div [] ([  Html.div [] [practice, edit],
                                     redeal, 
                                     Html.div [monoStyle] [Html.text n],
                                     Html.div [monoStyle] [Html.text e],
@@ -89,13 +89,18 @@ view model =
                                     Html.div [monoStyle] [Html.text w]]
                                     ++ availableBids)
                 _ -> Debug.todo "view failed"
-        Loc bidSequence ->
-            let bidPractice = Html.button [] [Html.text "Practice"] in
+        Edit bidSequence ->
+            let practice = Html.button [onClick (Goto (Practice []))] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
-            let buttonList = Html.button [onClick (Goto (Loc []))] [Html.text "Begin"]::(makeButtonList [] bidSequence) in
+            let buttonList = Html.button [onClick (Goto (Edit []))] [Html.text "Begin"]::(makeButtonList [] bidSequence) in
             let searchBox = Html.textarea [onInput searchBoxFunction] [] in
+            let instructions = Html.p [] [Html.text "Create new bid"] in
             let nextBids = displayNextBids model.system bidSequence in
-            Html.div [] [Html.p [] buttonList, Html.p [] [searchBox], Html.p [] nextBids]
+            Html.div [] [   Html.div [] [practice, edit],
+                            Html.div [] buttonList, 
+                            Html.div [] [searchBox], 
+                            instructions,
+                            Html.div [] nextBids]
 
 
 makeBidButton : Int -> Html Msg
@@ -166,7 +171,7 @@ bidString i =
 searchBoxFunction : String -> Msg
 searchBoxFunction string =
   case String.right 1 string of
-    "\n" -> (Goto (Loc (stringToSequence (String.dropRight 1 string))))
+    "\n" -> (Goto (Edit (stringToSequence (String.dropRight 1 string))))
       
     _ -> NoUpdate
       
@@ -174,11 +179,11 @@ makeButtonList : BidSequence -> BidSequence -> List (Html Msg)
 makeButtonList prevBids futureBids =
   case futureBids of
    [] -> [] 
-   bid::rest -> Html.button [onClick (Goto (Loc (prevBids++[bid])))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
+   bid::rest -> Html.button [onClick (Goto (Edit (prevBids++[bid])))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
 
 displayNextBids : BiddingRules -> BidSequence -> List (Html Msg)
 displayNextBids system history =
-  let newBox = [Html.textarea [onInput (newBidFunction system history)] [Html.text "Create New Bid"]]
+  let newBox = [Html.textarea [onInput (newBidFunction system history)] []]
   in case (traverseSystem (Just system) history) of
     Nothing -> newBox
     Just nextBids -> (List.map (displayBid system history) nextBids) ++ newBox
@@ -197,7 +202,7 @@ newBidFunction system history string =
 
 displayBid : BiddingRules -> BidSequence -> BidDefinition -> Html Msg
 displayBid system history (BidDefinition bid) =
- let followingBids = Html.button [onClick (Goto (Loc history))] [Html.text (bidToString bid.bidValue)]
+ let followingBids = Html.button [onClick (Goto (Edit history))] [Html.text (bidToString bid.bidValue)]
  in let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system history))] [Html.text ("<=")]
  in let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system history))] [Html.text ("=>")]
  in let modify = Html.button [] [Html.text "Modify"]
