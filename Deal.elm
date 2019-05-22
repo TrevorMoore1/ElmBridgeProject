@@ -118,7 +118,7 @@ displayHand hand =
       heartString = List.foldl (++) "" heartsRankStrings
       diamondString = List.foldl (++) "" diamondsRankStrings
       clubString = List.foldl (++) "" clubsRankStrings in
-  "S" ++ spadeString ++ " H" ++ heartString ++ " D" ++ diamondString ++ " C" ++ clubString
+  "♠" ++ spadeString ++ " ♥" ++ heartString ++ " ♦" ++ diamondString ++ " ♣" ++ clubString
 
 -- controller function for printing a full deal, given a seed
 newDeal : Int -> List String

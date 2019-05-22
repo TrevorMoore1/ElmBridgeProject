@@ -150,10 +150,10 @@ traverseSystem maybeSystem history =
 bidToString : Bid -> String
 bidToString (number, suit) =
  case suit of
-    Spade -> String.fromInt number ++ "S"
-    Heart -> String.fromInt number ++ "H"
-    Diamond -> String.fromInt number ++ "D"
-    Club -> String.fromInt number ++ "C"
+    Spade -> String.fromInt number ++ "♠"
+    Heart -> String.fromInt number ++ "♥"
+    Diamond -> String.fromInt number ++ "♦"
+    Club -> String.fromInt number ++ "♣"
     NoTrump -> String.fromInt number ++ "NT"
     Pass -> "Pass"
 

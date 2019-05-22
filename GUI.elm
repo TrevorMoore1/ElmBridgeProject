@@ -6,7 +6,7 @@ import Browser
 import Bidding exposing (..)
 import Html exposing (Html)
 import Html.Attributes exposing (style)
-import Html.Events exposing (onClick, onInput)
+import Html.Events exposing (onClick, onInput, onMouseOver, onMouseLeave)
 import Task exposing (..)
 import Time exposing (..)
 
@@ -20,14 +20,15 @@ type alias Model = {nextSeed : Int,
                     location : Location,
                     system : BiddingRules,
                     bidSequence : BidSequence,
+                    bidExplanation : String,
                     debug : String}
--- Suited bids are #0-34, then X, XX, P
 
 initModel = {   nextSeed = 0, 
                 passes = 0,
                 location = Practice,
-                bidSequence = [],
                 system = [],
+                bidSequence = [],
+                bidExplanation = "",
                 debug = "Debug"}
 
 
@@ -37,6 +38,7 @@ type Msg =
     RequestTime
   | ReceiveTime Posix
   | BidsMade BidSequence
+  | DisplayExplanation String
   | Goto Location
   | UpdateSystem (Maybe BiddingRules)
   | NoUpdate
@@ -55,6 +57,7 @@ update msg model =
             (level, Pass)::rest -> ({model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             (level, _)::rest -> ({model | passes = 0, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             _ -> (model, Cmd.none)
+    DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
     Goto newLocation -> ({model | passes = 0, location = newLocation, bidSequence = []}, Cmd.none)
     UpdateSystem maybeSystem ->
         case maybeSystem of
@@ -78,7 +81,7 @@ view model =
             let availableBids = bidDisplay model in
             let handString = Deal.newDeal model.nextSeed in
             let monoStyle = Html.Attributes.style "font-family" "courier" in
-            let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model.bidSequence) in
+            let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
             case handString of
                 n :: e :: s :: w :: [] ->
                     Html.div [] ([  Html.div [] [practice, edit],
@@ -88,7 +91,8 @@ view model =
                                     Html.div [monoStyle] [Html.text s],
                                     Html.div [monoStyle] [Html.text w]]
                                     ++ availableBids
-                                    ++ [bidsMadeButtons])
+                                    ++ [bidsMadeButtons]
+                                    ++ [Html.p [] [Html.text model.bidExplanation]])
                 _ -> Debug.todo "view failed"
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
@@ -109,18 +113,37 @@ view model =
                             --debugMessage
                             ]
 
-makeBidsMadeButtons : BidSequence -> List (Html Msg)
-makeBidsMadeButtons bidSequence =
+-- PRACTICE MODE FUNCTIONS -----------------------------------------------------------
+
+makeBidsMadeButtons : Model -> BidSequence -> List (Html Msg)
+makeBidsMadeButtons model bidSequence =
     case bidSequence of
         [] -> []
         bid :: rest ->
-            (Html.button [] [Html.text (Bidding.bidToString bid)]) :: (makeBidsMadeButtons rest)
+            let color = 
+                    case Tuple.second bid of
+                        Heart -> "red"
+                        Diamond -> "red"
+                        _ -> "black" in
+            let stringBid = bidToString bid in
+            (Html.button [  onMouseOver (DisplayExplanation (explanationToString bid model.bidSequence model.system)),
+                            onMouseLeave (DisplayExplanation "")] 
+                            [Html.div [] [  Html.span [] [Html.text (String.left 1 stringBid)],
+                                            Html.span [Html.Attributes.style "color" color] [Html.text (String.dropLeft 1 stringBid)]]]) 
+            :: (makeBidsMadeButtons model rest)
 
 
 makeBidBoxButton : Bid -> Html Msg
 makeBidBoxButton bid =
-    Html.button [onClick (BidsMade [bid])] [Html.text (bidToString bid)]
-
+    let color = 
+            case Tuple.second bid of
+                Heart -> "red"
+                Diamond -> "red"
+                _ -> "black" in
+    let stringBid = bidToString bid in
+    Html.button [onClick (BidsMade [bid])] 
+                [Html.div [] [  Html.span [] [Html.text (String.left 1 stringBid)],
+                                Html.span [Html.Attributes.style "color" color] [Html.text (String.dropLeft 1 stringBid)]]]
 
 makeBidBoxButtonInvis : Bid -> Html Msg
 makeBidBoxButtonInvis bid =
@@ -131,33 +154,51 @@ attachBidBoxButtons bids =
     case bids of
         [] -> []
         (bid, allowed) :: rest ->
-            if allowed then (makeBidBoxButton bid) :: attachBidBoxButtons rest
+            if allowed 
+                then (makeBidBoxButton bid) :: attachBidBoxButtons rest
             else (makeBidBoxButtonInvis bid) :: attachBidBoxButtons rest 
 
 bidDisplay : Model -> List (Html Msg)
 bidDisplay model =
-    let func = (\b -> (b, isBidAllowed b model)) in
-    let level1 = attachBidBoxButtons (List.map func [(1,Club),(1,Diamond),(1,Heart),(1,Spade),(1,NoTrump)])
-        level2 = attachBidBoxButtons (List.map func [(2,Club),(2,Diamond),(2,Heart),(2,Spade),(2,NoTrump)])
-        level3 = attachBidBoxButtons (List.map func [(3,Club),(3,Diamond),(3,Heart),(3,Spade),(3,NoTrump)])
-        level4 = attachBidBoxButtons (List.map func [(4,Club),(4,Diamond),(4,Heart),(4,Spade),(4,NoTrump)])
-        level5 = attachBidBoxButtons (List.map func [(5,Club),(5,Diamond),(5,Heart),(5,Spade),(5,NoTrump)])
-        level6 = attachBidBoxButtons (List.map func [(6,Club),(6,Diamond),(6,Heart),(6,Spade),(6,NoTrump)])
-        level7 = attachBidBoxButtons (List.map func [(7,Club),(7,Diamond),(7,Heart),(7,Spade),(7,NoTrump)]) in
+    let makeTupleFunc = (\bid -> (bid, isBidAllowed bid model)) in
+    let attachFunc = (\i -> attachBidBoxButtons (List.map makeTupleFunc [(i,Club),(i,Diamond),(i,Heart),(i,Spade),(i,NoTrump)])) in
+    let divFunc = (\lev -> Html.div [] lev) in
     let pass = 
             case model.bidSequence of
-                [] -> attachBidBoxButtons (List.map func [(0,Pass)])
-                _ -> attachBidBoxButtons (List.map func [(8,Pass)]) in
-    [   Html.div [] level1,
-        Html.div [] level2,
-        Html.div [] level3,
-        Html.div [] level4,
-        Html.div [] level5,
-        Html.div [] level6,
-        Html.div [] level7,
-        Html.div [] pass]
+                [] -> attachBidBoxButtons (List.map makeTupleFunc [(0,Pass)])
+                _ -> attachBidBoxButtons (List.map makeTupleFunc [(8,Pass)]) in
+    ((List.range 1 7)
+        |> List.map attachFunc
+        |> List.map divFunc)
+    ++ [Html.div [] pass]
 
+explanationToString : Bid -> BidSequence -> List BidDefinition -> String
+explanationToString currentBid bidsMade system =
+    case bidsMade of
+        [] -> ""
+        bid :: restBids ->
+            case system of
+                [] -> "Undefined"
+                BidDefinition def :: restDef -> 
+                    if def.bidValue == bid then
+                        if bid == currentBid then handRangeToString def.requirements
+                        else explanationToString currentBid restBids def.subsequentBids
+                    else explanationToString currentBid bidsMade restDef 
 
+handRangeToString : List HandRange -> String
+handRangeToString ranges =
+    case ranges of
+        [] -> ""
+        range :: restRanges ->
+            let firstString = 
+                        String.fromInt (Tuple.first range.points) ++ "-" ++ String.fromInt (Tuple.second range.points) ++ "points, "
+                    ++  String.fromInt (Tuple.first range.spades) ++ "-" ++ String.fromInt (Tuple.second range.spades) ++ "spades, "
+                    ++  String.fromInt (Tuple.first range.hearts) ++ "-" ++ String.fromInt (Tuple.second range.hearts) ++ "hearts, "
+                    ++  String.fromInt (Tuple.first range.diamonds) ++ "-" ++ String.fromInt (Tuple.second range.diamonds) ++ "diamonds, "
+                    ++  String.fromInt (Tuple.first range.clubs) ++ "-" ++ String.fromInt (Tuple.second range.clubs) ++ "clubs" in
+            if (List.isEmpty restRanges)
+                then firstString
+                else firstString ++ " OR " ++ handRangeToString restRanges
 
 isBidAllowed : Bid -> Model -> Bool
 isBidAllowed (newLevel, newSuit) model =
@@ -179,25 +220,9 @@ suitToInt suit =
         Heart -> 2
         Spade -> 3
         NoTrump -> 4
-        Pass -> 5
+        Pass -> 5    
 
-bidString : Int -> String
-bidString i =
-    if i == 35 then "X"
-    else if i == 36 then "XX"
-    else if i == 37 then "P"
-    else 
-        let level = (i // 5) + 1 in
-        let displayLevel = String.fromInt level in
-        let suit = modBy 5 i in
-        let displaySuit = case suit of
-                        0 -> "C"
-                        1 -> "D"
-                        2 -> "H"
-                        3 -> "S"
-                        4 -> "NT" 
-                        _ -> Debug.todo "suit faild" in
-        displayLevel ++ displaySuit                
+-- EDIT MODE FUNCTIONS ---------------------------------------------------------------          
 
 searchBoxFunction : String -> Msg
 searchBoxFunction string =
