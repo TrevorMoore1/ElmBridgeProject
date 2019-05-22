@@ -115,7 +115,7 @@ bidToString (number, suit) =
     Heart -> String.fromInt number ++ "H"
     Diamond -> String.fromInt number ++ "D"
     Club -> String.fromInt number ++ "C"
-    NoTrump -> String.fromInt number ++ "N"
+    NoTrump -> String.fromInt number ++ "NT"
     Pass -> "Pass"
 
 --Inverse of the above function
