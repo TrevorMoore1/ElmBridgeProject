@@ -196,11 +196,11 @@ handRangeToString ranges =
         [] -> ""
         range :: restRanges ->
             let firstString = 
-                        String.fromInt (Tuple.first range.points) ++ "-" ++ String.fromInt (Tuple.second range.points) ++ "points, "
-                    ++  String.fromInt (Tuple.first range.spades) ++ "-" ++ String.fromInt (Tuple.second range.spades) ++ "spades, "
-                    ++  String.fromInt (Tuple.first range.hearts) ++ "-" ++ String.fromInt (Tuple.second range.hearts) ++ "hearts, "
-                    ++  String.fromInt (Tuple.first range.diamonds) ++ "-" ++ String.fromInt (Tuple.second range.diamonds) ++ "diamonds, "
-                    ++  String.fromInt (Tuple.first range.clubs) ++ "-" ++ String.fromInt (Tuple.second range.clubs) ++ "clubs" in
+                        String.fromInt (Tuple.first range.points) ++ "-" ++ String.fromInt (Tuple.second range.points) ++ " points, "
+                    ++  String.fromInt (Tuple.first range.spades) ++ "-" ++ String.fromInt (Tuple.second range.spades) ++ " spades, "
+                    ++  String.fromInt (Tuple.first range.hearts) ++ "-" ++ String.fromInt (Tuple.second range.hearts) ++ " hearts, "
+                    ++  String.fromInt (Tuple.first range.diamonds) ++ "-" ++ String.fromInt (Tuple.second range.diamonds) ++ " diamonds, "
+                    ++  String.fromInt (Tuple.first range.clubs) ++ "-" ++ String.fromInt (Tuple.second range.clubs) ++ " clubs" in
             if (List.isEmpty restRanges)
                 then firstString
                 else firstString ++ " OR " ++ handRangeToString restRanges
