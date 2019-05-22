@@ -45,13 +45,13 @@ update msg model =
     ReceiveTime time ->
         let {nextSeed} = model in
         let newSeed = Time.posixToMillis time in
-        ({model | nextSeed = newSeed, passes = 0}, Cmd.none)
+        ({model | nextSeed = newSeed, passes = 0, bidSequence = []}, Cmd.none)
     BidsMade bids ->
         case bids of
             (level, Pass)::rest -> ({model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             (level, _)::rest -> ({model | passes = 0, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             _ -> (model, Cmd.none)
-    Goto newLocation -> ({model | location = newLocation, bidSequence = []}, Cmd.none)
+    Goto newLocation -> ({model | passes = 0, location = newLocation, bidSequence = []}, Cmd.none)
     UpdateSystem maybeSystem ->
         case maybeSystem of
             Nothing -> (model, Cmd.none)
@@ -76,7 +76,7 @@ view model =
             case handString of
                 n :: e :: s :: w :: [] ->
                     Html.div [] ([  Html.div [] [practice, edit],
-                                    redeal, 
+                                    redeal,
                                     Html.div [monoStyle] [Html.text n],
                                     Html.div [monoStyle] [Html.text e],
                                     Html.div [monoStyle] [Html.text s],
@@ -130,8 +130,11 @@ bidDisplay model =
         level4 = attachBidBoxButtons (List.map func [(4,Club),(4,Diamond),(4,Heart),(4,Spade),(4,NoTrump)])
         level5 = attachBidBoxButtons (List.map func [(5,Club),(5,Diamond),(5,Heart),(5,Spade),(5,NoTrump)])
         level6 = attachBidBoxButtons (List.map func [(6,Club),(6,Diamond),(6,Heart),(6,Spade),(6,NoTrump)])
-        level7 = attachBidBoxButtons (List.map func [(7,Club),(7,Diamond),(7,Heart),(7,Spade),(7,NoTrump)])
-        level8 = attachBidBoxButtons (List.map func [(8,Club),(8,Diamond),(8,Heart),(8,Spade),(8,NoTrump)]) in
+        level7 = attachBidBoxButtons (List.map func [(7,Club),(7,Diamond),(7,Heart),(7,Spade),(7,NoTrump)]) in
+    let pass = 
+            case model.bidSequence of
+                [] -> attachBidBoxButtons (List.map func [(0,Pass)])
+                _ -> attachBidBoxButtons (List.map func [(8,Pass)]) in
     [   Html.div [] level1,
         Html.div [] level2,
         Html.div [] level3,
@@ -139,13 +142,13 @@ bidDisplay model =
         Html.div [] level5,
         Html.div [] level6,
         Html.div [] level7,
-        Html.div [] level8]
+        Html.div [] pass]
 
 
 
 isBidAllowed : Bid -> Model -> Bool
 isBidAllowed (newLevel, newSuit) model =
-    if (((model.passes == 1) && (model.bidSequence /= [])) || (model.passes == 2)) then False
+    if (((model.passes == 1) && ((List.length model.bidSequence) > 1)) || (model.passes == 2)) then False
     else
         let length = List.length model.bidSequence in
         case List.head (List.drop (length - 1) model.bidSequence) of
