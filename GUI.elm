@@ -5,7 +5,7 @@ import Deal exposing (Card, shuffle, separate, handRecords, newDeal)
 import Browser
 import Bidding exposing (..)
 import Html exposing (Html)
-import Html.Attributes exposing (style)
+import Html.Attributes exposing (style, value)
 import Html.Events exposing (onClick, onInput, onMouseOver, onMouseLeave)
 import Task exposing (..)
 import Time exposing (..)
@@ -265,51 +265,86 @@ displayBid system history (BidDefinition bid) =
  let followingBids = Html.button [onClick (ChangeBiddingSequence (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
  let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system (history++[bid.bidValue])))] [Html.text ("Increase Priority")] in
  let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system (history++[bid.bidValue])))] [Html.text ("Decrease Priority")] in
- --let modify = Html.button [] [Html.text "Modify"] in
- let pointRow =  Html.div [] [Html.text "Points:",
-                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerPointTo (String.toInt string))))] [Html.text (getLowerPoint system newHistory)],
-                 Html.text "to",
-                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperPointTo (String.toInt string))))] [Html.text (getUpperPoint system newHistory)]] in
- let spadeRow = Html.div [] [Html.text "Spades:"] in
- let heartRow = Html.div [] [Html.text "Hearts:"] in
- let diamondRow = Html.div [] [Html.text "Diamonds:"] in
- let clubRow = Html.div [] [Html.text "Clubs:"] in
- let meaningTable = Html.div [] [pointRow, spadeRow, heartRow, diamondRow, clubRow]  in
+ let meaningTable = Html.div [] (List.map (makeSuitRow system newHistory) [NoTrump, Spade, Heart, Diamond, Club])  in
  let delete = Html.button [onClick (UpdateSystem (removeBid system (history++[bid.bidValue])))] [Html.text "Delete Bid"] in
  Html.div [] [followingBids, meaningTable, prioritize, deprioritize, delete]
  --Html.div [] [followingBids, modify]
 
-testSystem : Bid -> BiddingRules
-testSystem bid = [BidDefinition {requirements = [], bidValue = (1, Spade), subsequentBids = []}]
+makeSuitRow : BiddingRules -> BidSequence -> Suit -> Html Msg
+makeSuitRow system newHistory suit = 
+    let label = 
+            case suit of
+                NoTrump -> "Points:"
+                Spade -> "Spades:"    
+                Heart -> "Hearts:"
+                Diamond -> "Diamonds:"
+                Club -> "Clubs:"
+                Pass -> ""
+    in
+    Html.div [] [Html.text label,
+    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string)))), Html.Attributes.value (getLower suit system newHistory)] [],
+    Html.text "to",
+    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string)))), Html.Attributes.value (getUpper suit system newHistory)] []]
 
-editLowerPointTo : Maybe Int -> List HandRange -> Maybe (List HandRange)
-editLowerPointTo maybeLowerBound handRangeList =
+editLowerTo : Suit -> Maybe Int -> List HandRange -> Maybe (List HandRange)
+editLowerTo suit maybeLowerBound handRangeList = 
     case (maybeLowerBound, handRangeList) of
-        (Just lowerBound, handRange::rest) -> let (prevPointMin, prevPointMax) = handRange.points in Just ({handRange | points = (lowerBound, prevPointMax)}::rest)
+        (Just lowerBound, handRange::rest) -> case suit of
+            NoTrump -> let (prevMin, prevMax) = handRange.points in Just ({handRange | points = (lowerBound, prevMax)}::rest)
+            Spade -> let (prevMin, prevMax) = handRange.spades in Just ({handRange | spades = (lowerBound, prevMax)}::rest)
+            Heart -> let (prevMin, prevMax) = handRange.hearts in Just ({handRange | hearts = (lowerBound, prevMax)}::rest)
+            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just ({handRange | diamonds = (lowerBound, prevMax)}::rest)
+            Club -> let (prevMin, prevMax) = handRange.clubs in Just ({handRange | clubs = (lowerBound, prevMax)}::rest)  
+            _ -> Just handRangeList
         _ -> Nothing
 
-editUpperPointTo : Maybe Int -> List HandRange -> Maybe (List HandRange)
-editUpperPointTo maybeUpperBound handRangeList =
+editUpperTo : Suit -> Maybe Int -> List HandRange -> Maybe (List HandRange)
+editUpperTo suit maybeUpperBound handRangeList = 
     case (maybeUpperBound, handRangeList) of
-        (Just upperBound, handRange::rest) -> let (prevPointMin, prevPointMax) = handRange.points in Just ({handRange | points = (prevPointMin, upperBound)}::rest)
-        _ -> Nothing           
+        (Just upperBound, handRange::rest) -> case suit of
+            NoTrump -> let (prevMin, prevMax) = handRange.points in Just ({handRange | points = (prevMin, upperBound)}::rest)
+            Spade -> let (prevMin, prevMax) = handRange.spades in Just ({handRange | spades = (prevMin, upperBound)}::rest)
+            Heart -> let (prevMin, prevMax) = handRange.hearts in Just ({handRange | hearts = (prevMin, upperBound)}::rest)
+            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just ({handRange | diamonds = (prevMin, upperBound)}::rest)
+            Club -> let (prevMin, prevMax) = handRange.clubs in Just ({handRange | clubs = (prevMin, upperBound)}::rest)  
+            _ -> Just handRangeList
+        _ -> Nothing        
 
-getLowerPoint : BiddingRules -> List Bid -> String
-getLowerPoint system history =
+getLower : Suit -> BiddingRules -> List Bid -> String
+getLower suit system history =
     case getBid system history of
-        Nothing -> ""
+        Nothing -> "a"
         Just (BidDefinition bid) -> case bid.requirements of
-            [] -> ""
-            meaning::rest -> let (lowerPoint, upperPoint) = meaning.points in String.fromInt lowerPoint
+            [] -> "b"
+            meaning::rest -> case suit of
+                NoTrump -> let (lower, upper) = meaning.points in String.fromInt lower
+                Spade -> let (lower, upper) = meaning.spades in String.fromInt lower
+                Heart -> let (lower, upper) = meaning.hearts in String.fromInt lower
+                Diamond -> let (lower, upper) = meaning.diamonds in String.fromInt lower
+                Club -> let (lower, upper) = meaning.clubs in String.fromInt lower 
+                _ -> "c"
+                     
 
-getUpperPoint : BiddingRules -> List Bid -> String
-getUpperPoint system history =
+getUpper : Suit -> BiddingRules -> List Bid -> String
+getUpper suit system history =
     case getBid system history of
-        Nothing -> ""
+        Nothing -> "a"
         Just (BidDefinition bid) -> case bid.requirements of
-            [] -> ""
-            meaning::rest -> let (lowerPoint, upperPoint) = meaning.points in String.fromInt upperPoint
+            [] -> "b"
+            meaning::rest -> case suit of
+                NoTrump -> let (lower, upper) = meaning.points in String.fromInt upper
+                Spade -> let (lower, upper) = meaning.spades in String.fromInt upper
+                Heart -> let (lower, upper) = meaning.hearts in String.fromInt upper
+                Diamond -> let (lower, upper) = meaning.diamonds in String.fromInt upper
+                Club -> let (lower, upper) = meaning.clubs in String.fromInt upper
+                _ -> "c"
             
+toIntEmpty : String -> Maybe Int
+toIntEmpty string =
+    case string of
+        "" -> Just 0
+        _ -> String.toInt string 
+
 
 -- SUBSCRIPTIONS
 
