@@ -3,12 +3,12 @@ module GUI exposing (main)
 import Bidding exposing (..)
 import Deal exposing (Card, shuffle, separate, handRecords, newDeal)
 import Browser
+import Bidding exposing (..)
 import Html exposing (Html)
 import Html.Attributes exposing (style)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Task exposing (..)
 import Time exposing (..)
-
 
 
 -- MODEL
@@ -20,7 +20,8 @@ type alias Model = {nextSeed : Int,
                     xAllowed : Bool,
                     xxAllowed : Bool,
                     passes : Int,
-                    location : Location}
+                    location : Location,
+                    system : BiddingRules}
 -- Suited bids are #0-34, then X, XX, P
 
 initModel = {   nextSeed = 0, 
@@ -28,7 +29,8 @@ initModel = {   nextSeed = 0,
                 xAllowed = False, 
                 xxAllowed = False,
                 passes = 0,
-                location = BidPractice}
+                location = BidPractice,
+                system = []}
 
 
 -- UPDATE
@@ -37,8 +39,9 @@ type Msg =
     RequestTime
   | ReceiveTime Posix
   | NewBid Int
-  | PracticeMode
-  | EditMode
+  | Goto Location
+  | UpdateSystem (Maybe BiddingRules)
+  | NoUpdate
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -47,7 +50,7 @@ update msg model =
     ReceiveTime time ->
         let {nextSeed} = model in
         let newSeed = Time.posixToMillis time in
-        ({nextSeed = newSeed, currentBid = -1, xAllowed = False, xxAllowed = False, passes = 0, location = BidPractice}, Cmd.none)
+        ({model | nextSeed = newSeed, currentBid = -1, xAllowed = False, xxAllowed = False, passes = 0}, Cmd.none)
     NewBid bid ->
         let {nextSeed, currentBid, xAllowed, xxAllowed, passes} = model in
         case bid of
@@ -55,10 +58,13 @@ update msg model =
             36 -> ({model | xAllowed = False, xxAllowed = False, passes = 0}, Cmd.none)
             37 -> ({model | passes = passes + 1}, Cmd.none)
             _ -> ({model | currentBid = bid, xAllowed = True, xxAllowed = False, passes = 0}, Cmd.none)
-    PracticeMode ->
-        ({model | location = BidPractice}, Cmd.none)
-    EditMode ->
-        ({model | location = Loc []}, Cmd.none)
+    Goto newLocation -> ({model | location = newLocation}, Cmd.none)
+    UpdateSystem maybeSystem ->
+        case maybeSystem of
+            Nothing -> (model, Cmd.none)
+            Just newSystem ->
+                ({model | system = newSystem}, Cmd.none)
+    NoUpdate -> (model, Cmd.none)
 
 
 -- VIEW
@@ -67,12 +73,11 @@ view : Model -> Html Msg
 view model =
     case model.location of
         BidPractice -> 
-            let {nextSeed} = model in
             let redeal = Html.button [onClick RequestTime] [Html.text "Redeal"] in
             let bidPractice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
-            let edit = Html.button [] [Html.text "Edit System"] in
+            let edit = Html.button [onClick (Goto (Loc []))] [Html.text "Edit System"] in
             let availableBids = bidDisplay model in
-            let handString = Deal.newDeal nextSeed in
+            let handString = Deal.newDeal model.nextSeed in
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             case handString of
                 n :: e :: s :: w :: [] ->
@@ -85,7 +90,12 @@ view model =
                                     ++ availableBids)
                 _ -> Debug.todo "view failed"
         Loc bidSequence ->
-            Debug.todo "TODO"
+            let bidPractice = Html.button [] [Html.text "Practice"] in
+            let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
+            let buttonList = Html.button [onClick (Goto (Loc []))] [Html.text "Begin"]::(makeButtonList [] bidSequence) in
+            let searchBox = Html.textarea [onInput searchBoxFunction] [] in
+            let nextBids = displayNextBids model.system bidSequence in
+            Html.div [] [Html.p [] buttonList, Html.p [] [searchBox], Html.p [] nextBids]
 
 
 makeBidButton : Int -> Html Msg
@@ -153,7 +163,46 @@ bidString i =
                         _ -> Debug.todo "suit faild" in
         displayLevel ++ displaySuit                
 
+searchBoxFunction : String -> Msg
+searchBoxFunction string =
+  case String.right 1 string of
+    "\n" -> (Goto (Loc (stringToSequence (String.dropRight 1 string))))
+      
+    _ -> NoUpdate
+      
+makeButtonList : BidSequence -> BidSequence -> List (Html Msg)
+makeButtonList prevBids futureBids =
+  case futureBids of
+   [] -> [] 
+   bid::rest -> Html.button [onClick (Goto (Loc (prevBids++[bid])))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
 
+displayNextBids : BiddingRules -> BidSequence -> List (Html Msg)
+displayNextBids system history =
+  let newBox = [Html.textarea [onInput (newBidFunction system history)] [Html.text "Create New Bid"]]
+  in case (traverseSystem (Just system) history) of
+    Nothing -> newBox
+    Just nextBids -> (List.map (displayBid system history) nextBids) ++ newBox
+
+newBidFunction : BiddingRules -> BidSequence -> String -> Msg
+newBidFunction system history string =
+  case String.right 1 string of
+    "\n" -> case stringToBid (String.dropRight 1 string) of
+      Nothing -> NoUpdate
+        
+      Just bid -> (UpdateSystem (defineBid system (history++[bid]) []))
+      
+    _ -> NoUpdate
+      
+      
+
+displayBid : BiddingRules -> BidSequence -> BidDefinition -> Html Msg
+displayBid system history (BidDefinition bid) =
+ let followingBids = Html.button [onClick (Goto (Loc history))] [Html.text (bidToString bid.bidValue)]
+ in let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system history))] [Html.text ("<=")]
+ in let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system history))] [Html.text ("=>")]
+ in let modify = Html.button [] [Html.text "Modify"]
+ in let delete = Html.button [onClick (UpdateSystem (removeBid system history))] [Html.text "Delete"]
+ in Html.div [] [followingBids, prioritize, deprioritize, modify, delete]
 
 
 -- SUBSCRIPTIONS
