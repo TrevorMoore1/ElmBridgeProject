@@ -269,7 +269,7 @@ displayBid system history (BidDefinition bid) =
  let pointRow =  Html.div [] [Html.text "Points:",
                  Html.textarea [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerPointTo (String.toInt string))))] [Html.text (getLowerPoint system newHistory)],
                  Html.text "to",
-                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system history (editUpperPointTo (String.toInt string))))] [Html.text (getUpperPoint system newHistory)]] in
+                 Html.textarea [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperPointTo (String.toInt string))))] [Html.text (getUpperPoint system newHistory)]] in
  let spadeRow = Html.div [] [Html.text "Spades:"] in
  let heartRow = Html.div [] [Html.text "Hearts:"] in
  let diamondRow = Html.div [] [Html.text "Diamonds:"] in
