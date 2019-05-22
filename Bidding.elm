@@ -145,6 +145,19 @@ getNextBids bidList bid previousBids =
                                 then Just (previousBids, priorityBid, rest)
                                 else getNextBids rest bid (priorityBid::previousBids)
 
+getBid : BiddingRules -> List Bid -> Maybe BidDefinition
+getBid system history =
+    case history of
+        [] -> Nothing
+        lastBid::[] -> case getNextBids system lastBid [] of
+            Nothing -> Nothing 
+            Just (_, foundBid, _) -> Just foundBid
+        firstBid::rest -> case getNextBids system firstBid [] of
+            Nothing -> Nothing
+            Just (_, BidDefinition foundBid, _) -> getBid foundBid.subsequentBids rest
+                 
+            
+
 -- Input: current hand, candidate range
 -- Output: whether the hand fits the range
 handInRange : HandType -> HandRange -> Bool
