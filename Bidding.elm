@@ -36,7 +36,33 @@ defineBid system history bidMeaning =
                     Nothing -> Nothing
                          
                 Nothing -> Nothing
+
+-- Like defineBid, but takes a function that takes the old requirements and turns them into new requirements. Retains previous priority.
+modifyBid : BiddingRules -> BidSequence -> (List HandRange -> Maybe (List HandRange)) -> Maybe BiddingRules
+modifyBid system history bidModification =
+    case history of
+        []               -> Nothing
+        lastBid::[]      -> subSystemModify system lastBid bidModification
+        firstBid::rest -> 
+            case getNextBids system firstBid [] of
+                Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case modifyBid foundBid.subsequentBids rest bidModification of
+                    Just subSystem -> Just (higherPriorityBids ++ [BidDefinition {foundBid | subsequentBids = subSystem}] ++ lowerPriorityBids)
+                        
+                    Nothing -> Nothing
+                         
+                Nothing -> Nothing
+
+--Helper function for modifyBid
+subSystemModify : BiddingRules -> Bid -> (List HandRange -> Maybe (List HandRange)) -> Maybe BiddingRules
+subSystemModify subSystem bid bidModification =
+    case getNextBids subSystem bid [] of
+        Nothing -> Nothing
+        Just(higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case bidModification foundBid.requirements of
+            Nothing -> Nothing
                 
+            Just newMeaning -> Just (higherPriorityBids ++ [BidDefinition {foundBid | requirements = newMeaning}] ++ lowerPriorityBids)
+            
+                 
 -- Input: a system, a history (with last bid being the one we want to prioritize)
 -- Output: a system, if the input history exists
 prioritizeBid : BiddingRules -> BidSequence -> Maybe BiddingRules
@@ -177,3 +203,7 @@ stringToBid string =
 --Output: A BidSequence
 stringToSequence : String -> BidSequence
 stringToSequence string = List.filterMap (stringToBid) (String.split "-" string)
+
+--A HandRange consisting of all hands
+allHands : HandRange
+allHands = {spades = (0,13), hearts = (0,13), diamonds = (0,13), clubs = (0,13), points = (0,37)}

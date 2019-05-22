@@ -37,6 +37,7 @@ type Msg =
     RequestTime
   | ReceiveTime Posix
   | BidsMade BidSequence
+  | ChangeBiddingSequence BidSequence
   | Goto Location
   | UpdateSystem (Maybe BiddingRules)
   | NoUpdate
@@ -55,6 +56,9 @@ update msg model =
             (level, Pass)::rest -> ({model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             (level, _)::rest -> ({model | passes = 0, bidSequence = model.bidSequence ++ bids}, Cmd.none)
             _ -> (model, Cmd.none)
+    ChangeBiddingSequence bids ->
+        ({model | bidSequence = bids}, Cmd.none)
+    --ChangeBiddingSequence overwrites the previous sequence, BidsMade adds to it
     Goto newLocation -> ({model | passes = 0, location = newLocation, bidSequence = []}, Cmd.none)
     UpdateSystem maybeSystem ->
         case maybeSystem of
@@ -93,10 +97,11 @@ view model =
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
-            let buttonList = Html.button [onClick (Goto Edit)] [Html.text "Begin"]::(makeButtonList [] model.bidSequence) in
+            let buttonList = Html.button [onClick (ChangeBiddingSequence [])] [Html.text "Begin"]::(makeButtonList [] model.bidSequence) in
             let searchBox = Html.textarea [onInput searchBoxFunction] [] in
             let instructions = Html.p [] [Html.text "Create new bid"] in
             --let debugMessage = Html.p [] [Html.text model.debug] in
+            let debugMessage = Html.p [] [Html.text (String.fromInt (List.length model.bidSequence))] in
             let newBidBox = [Html.textarea [onInput (newBidFunction model.system model.bidSequence)] []] in
             --let newBidBox = [Html.textarea [onInput DebugString] []] in
             let nextBids = displayNextBids model.system model.bidSequence in
@@ -105,8 +110,8 @@ view model =
                             Html.div [] [searchBox], 
                             instructions,
                             Html.div [] newBidBox,
-                            Html.div [] nextBids
-                            --debugMessage
+                            Html.div [] nextBids,
+                            debugMessage
                             ]
 
 makeBidsMadeButtons : BidSequence -> List (Html Msg)
@@ -202,7 +207,7 @@ bidString i =
 searchBoxFunction : String -> Msg
 searchBoxFunction string =
   case String.right 1 string of
-    "\n" -> BidsMade (stringToSequence (String.dropRight 1 string))
+    "\n" -> ChangeBiddingSequence (stringToSequence (String.dropRight 1 string))
       
     _ -> NoUpdate
       
@@ -210,7 +215,7 @@ makeButtonList : BidSequence -> BidSequence -> List (Html Msg)
 makeButtonList prevBids futureBids =
   case futureBids of
    [] -> [] 
-   bid::rest -> Html.button [onClick (BidsMade (prevBids++[bid]))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
+   bid::rest -> Html.button [onClick (ChangeBiddingSequence (prevBids++[bid]))] [Html.text (bidToString bid)]::(makeButtonList (prevBids++[bid]) rest)
 
 displayNextBids : BiddingRules -> BidSequence -> List (Html Msg)
 displayNextBids system history =
@@ -231,12 +236,18 @@ newBidFunction system history string =
       
 displayBid : BiddingRules -> BidSequence -> BidDefinition -> Html Msg
 displayBid system history (BidDefinition bid) =
- let followingBids = Html.button [onClick (BidsMade (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
- let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system history))] [Html.text ("Increase Priority")] in
- let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system history))] [Html.text ("Decrease Priority")] in
- let modify = Html.button [] [Html.text "Modify"] in
- let delete = Html.button [onClick (UpdateSystem (removeBid system history))] [Html.text "Delete Bid"] in
- Html.div [] [followingBids, modify, prioritize, deprioritize, delete]
+ let followingBids = Html.button [onClick (ChangeBiddingSequence (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
+ let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system (history++[bid.bidValue])))] [Html.text ("Increase Priority")] in
+ let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system (history++[bid.bidValue])))] [Html.text ("Decrease Priority")] in
+ --let modify = Html.button [] [Html.text "Modify"] in
+ let pointRow = Html.div [] [Html.text "15 to 17"] in
+ let spadeRow = Html.div [] [Html.text "2 to 5"] in
+ let heartRow = Html.div [] [Html.text "2 to 5"] in
+ let diamondRow = Html.div [] [Html.text "2 to 5"] in
+ let clubRow = Html.div [] [Html.text "2 to 5"] in
+ let meaningTable = Html.div [] [pointRow, spadeRow, heartRow, diamondRow, clubRow]  in
+ let delete = Html.button [onClick (UpdateSystem (removeBid system (history++[bid.bidValue])))] [Html.text "Delete Bid"] in
+ Html.div [] [followingBids, meaningTable, prioritize, deprioritize, delete]
  --Html.div [] [followingBids, modify]
 
 testSystem : Bid -> BiddingRules
