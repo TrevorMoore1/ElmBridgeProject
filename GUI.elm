@@ -80,9 +80,9 @@ view model =
                                     Html.div [monoStyle] [Html.text n],
                                     Html.div [monoStyle] [Html.text e],
                                     Html.div [monoStyle] [Html.text s],
-                                    Html.div [monoStyle] [Html.text w],
-                                    bidsMadeButtons]
-                                    ++ availableBids)
+                                    Html.div [monoStyle] [Html.text w]]
+                                    ++ availableBids
+                                    ++ [bidsMadeButtons])
                 _ -> Debug.todo "view failed"
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
