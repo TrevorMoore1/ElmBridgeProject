@@ -15,18 +15,22 @@ import Time exposing (..)
 
 type Location = Practice | Edit
 
-type alias Model = {nextSeed : Int,
+type alias Model = {myHand : String,
+                    yourHand : String, 
                     passes : Int,
                     location : Location,
                     system : BiddingRules,
+                    subSystem : BiddingRules,
                     bidSequence : BidSequence,
                     bidExplanation : String,
                     debug : String}
 
-initModel = {   nextSeed = 0, 
+initModel = {   myHand = "",
+                yourHand = "",
                 passes = 0,
                 location = Practice,
                 system = [],
+                subSystem = [],
                 bidSequence = [],
                 bidExplanation = "",
                 debug = "Debug"}
@@ -50,14 +54,26 @@ update msg model =
   case msg of
     RequestTime -> (model, Task.perform ReceiveTime Time.now)
     ReceiveTime time ->
-        let {nextSeed} = model in
         let newSeed = Time.posixToMillis time in
-        ({model | nextSeed = newSeed, passes = 0, bidSequence = []}, Cmd.none)
+        let handString = Deal.newDeal newSeed in
+        let myHandString = 
+                case List.head handString of
+                    Nothing -> Debug.todo "myHandString error"
+                    Just myHand -> myHand in
+        let yourHandString = 
+                case List.head (List.drop 1 handString) of
+                    Nothing -> Debug.todo "yourHandString error"
+                    Just yourHand -> yourHand in
+        ({model | myHand = myHandString, yourHand = yourHandString, passes = 0, bidSequence = [], subSystem = model.system}, Cmd.none)
     BidsMade bids ->
-        case bids of
-            (level, Pass)::rest -> ({model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}, Cmd.none)
-            (level, _)::rest -> ({model | passes = 0, bidSequence = model.bidSequence ++ bids}, Cmd.none)
-            _ -> (model, Cmd.none)
+        let tempModel = 
+                case bids of
+                    (level, Pass)::rest -> {model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}
+                    (level, _)::rest -> {model | passes = 0, bidSequence = model.bidSequence ++ bids}
+                    _ -> model in
+        case makeBid tempModel.subSystem (stringToType tempModel.yourHand {spades = 0, hearts = 0, diamonds = 0, clubs = 0, points = 0} Pass) of
+                Nothing -> ({tempModel | bidExplanation = "Sorry, I don't know what to bid!"}, Cmd.none)
+                Just (bid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [bid]}, Cmd.none)
     DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
     ChangeBiddingSequence bids ->
         ({model | bidSequence = bids}, Cmd.none)
@@ -71,6 +87,8 @@ update msg model =
                 --({model | debug = "Updated System"}, Cmd.none)
     NoUpdate -> (model, Cmd.none)
     DebugString string -> ({model | debug = string}, Cmd.none)
+        
+
 
 
 -- VIEW
@@ -83,18 +101,14 @@ view model =
             let practice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
             let edit = Html.button [onClick (Goto Edit)] [Html.text "Edit System"] in
             let availableBids = bidDisplay model in
-            let handString = Deal.newDeal model.nextSeed in
-            let myHandString = 
-                    case List.head handString of
-                        Nothing -> Debug.todo "myHandString error"
-                        Just myHand -> myHand in
-
+            
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
             Html.div [] ([  Html.div [] [practice, edit],
                                     redeal,
                                     Html.div [] [Html.br [] []],
-                                    Html.div [monoStyle] [Html.text myHandString],
+                                    Html.div [monoStyle] [Html.text model.myHand],
+                                    Html.div [monoStyle] [Html.text model.yourHand],
                                     Html.div [] [Html.br [] []]]
                                     ++ availableBids
                                     ++ [Html.br [] []]

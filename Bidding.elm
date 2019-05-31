@@ -220,3 +220,36 @@ stringToSequence string = List.filterMap (stringToBid) (String.split "-" string)
 --A HandRange consisting of all hands
 allHands : HandRange
 allHands = {spades = (0,13), hearts = (0,13), diamonds = (0,13), clubs = (0,13), points = (0,37)}
+
+stringToType : String -> HandType -> Suit -> HandType
+stringToType handString acc suit =
+    let nextString = String.dropLeft 1 handString in
+    case String.left 1 handString of
+        ""  -> acc
+        " " -> stringToType nextString acc suit
+        "♠" -> stringToType nextString acc Spade
+        "♥" -> stringToType nextString acc Heart
+        "♦" -> stringToType nextString acc Diamond
+        "♣" -> stringToType nextString acc Club
+        "A" -> 
+            let addedToSuit = addToSuit acc suit in
+            {addedToSuit | points = acc.points + 4}
+        "K" -> 
+            let addedToSuit = addToSuit acc suit in
+            {addedToSuit | points = acc.points + 3}
+        "Q" -> 
+            let addedToSuit = addToSuit acc suit in
+            {addedToSuit | points = acc.points + 2}
+        "J" -> 
+            let addedToSuit = addToSuit acc suit in
+            {addedToSuit | points = acc.points + 1}
+        _ -> addToSuit acc suit
+
+addToSuit : HandType -> Suit -> HandType
+addToSuit acc suit =
+    case suit of
+        Spade -> {acc | spades = acc.spades + 1}
+        Heart -> {acc | hearts = acc.hearts + 1}
+        Diamond -> {acc | diamonds = acc.diamonds + 1}
+        Club -> {acc | clubs = acc.clubs + 1}
+        _ -> Debug.todo "Require for soundess"
