@@ -16,7 +16,8 @@ import Time exposing (..)
 type Location = Practice | Edit
 
 type alias Model = {myHand : String,
-                    yourHand : String, 
+                    yourHand : String,
+                    yourType : HandType, 
                     passes : Int,
                     location : Location,
                     system : BiddingRules,
@@ -27,6 +28,7 @@ type alias Model = {myHand : String,
 
 initModel = {   myHand = "",
                 yourHand = "",
+                yourType = {spades = 0, hearts = 0, diamonds = 0, clubs = 0, points = 0},
                 passes = 0,
                 location = Practice,
                 system = [],
@@ -41,7 +43,7 @@ initModel = {   myHand = "",
 type Msg =
     RequestTime
   | ReceiveTime Posix
-  | BidsMade BidSequence
+  | BidsMade Bid
   | DisplayExplanation String
   | ChangeBiddingSequence BidSequence
   | Goto Location
@@ -64,16 +66,17 @@ update msg model =
                 case List.head (List.drop 1 handString) of
                     Nothing -> Debug.todo "yourHandString error"
                     Just yourHand -> yourHand in
-        ({model | myHand = myHandString, yourHand = yourHandString, passes = 0, bidSequence = [], subSystem = model.system}, Cmd.none)
-    BidsMade bids ->
+        let yourHandType = stringToType yourHandString {spades = 0, hearts = 0, diamonds = 0, clubs = 0, points = 0} Pass in
+        ({model | myHand = myHandString, yourHand = yourHandString, yourType = yourHandType, passes = 0, bidSequence = [], subSystem = model.system}, Cmd.none)
+    BidsMade bid ->
+        let newSubSystem = getSubSystem model.subSystem bid in
         let tempModel = 
-                case bids of
-                    (level, Pass)::rest -> {model | passes = model.passes + 1, bidSequence = model.bidSequence ++ bids}
-                    (level, _)::rest -> {model | passes = 0, bidSequence = model.bidSequence ++ bids}
-                    _ -> model in
-        case makeBid tempModel.subSystem (stringToType tempModel.yourHand {spades = 0, hearts = 0, diamonds = 0, clubs = 0, points = 0} Pass) of
+                case bid of
+                    (_, Pass) -> {model | subSystem = newSubSystem, passes = model.passes + 1, bidSequence = model.bidSequence ++ [bid]}
+                    _ -> {model | subSystem = newSubSystem, passes = 0, bidSequence = model.bidSequence ++ [bid]} in
+        case makeBid tempModel.subSystem model.yourType of
                 Nothing -> ({tempModel | bidExplanation = "Sorry, I don't know what to bid!"}, Cmd.none)
-                Just (bid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [bid]}, Cmd.none)
+                Just (newBid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [newBid]}, Cmd.none)
     DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
     ChangeBiddingSequence bids ->
         ({model | bidSequence = bids}, Cmd.none)
@@ -83,13 +86,11 @@ update msg model =
         case maybeSystem of
             Nothing -> (model, Cmd.none)
             Just newSystem ->
-                ({model | debug = String.fromInt(List.length(newSystem)), system = newSystem}, Cmd.none)
+                ({model | debug = String.fromInt(List.length(newSystem)), system = newSystem, subSystem = newSystem}, Cmd.none)
                 --({model | debug = "Updated System"}, Cmd.none)
     NoUpdate -> (model, Cmd.none)
     DebugString string -> ({model | debug = string}, Cmd.none)
         
-
-
 
 -- VIEW
 
@@ -104,11 +105,13 @@ view model =
             
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
+            let stringOfType = (String.fromInt model.yourType.spades) ++ " spades, " ++ (String.fromInt model.yourType.hearts) ++ " hearts, " ++ (String.fromInt model.yourType.diamonds) ++ " diamonds, " ++ (String.fromInt model.yourType.clubs) ++ " clubs, " ++ (String.fromInt model.yourType.points) ++ " points" in
             Html.div [] ([  Html.div [] [practice, edit],
                                     redeal,
                                     Html.div [] [Html.br [] []],
                                     Html.div [monoStyle] [Html.text model.myHand],
                                     Html.div [monoStyle] [Html.text model.yourHand],
+                                    Html.div [] [Html.text stringOfType],
                                     Html.div [] [Html.br [] []]]
                                     ++ availableBids
                                     ++ [Html.br [] []]
@@ -162,7 +165,7 @@ makeBidBoxButton bid model =
                 Diamond -> "red"
                 _ -> "black" in
     let stringBid = bidToString bid in
-    Html.button [   onClick (BidsMade [bid]),
+    Html.button [   onClick (BidsMade bid),
                     onMouseOver (DisplayExplanation (explanationToString bid (model.bidSequence ++ [bid]) model.system)),
                     onMouseLeave (DisplayExplanation "")] 
                 [Html.div [] [Html.span [] [Html.text (String.left 1 stringBid)],
@@ -225,7 +228,11 @@ handRangeToString ranges =
 
 isBidAllowed : Bid -> Model -> Bool
 isBidAllowed (newLevel, newSuit) model =
-    if (((model.passes == 1) && ((List.length model.bidSequence) > 1)) || (model.passes == 2)) then False
+    let firstBid = 
+            case List.head model.bidSequence of
+                Nothing -> (1,Club) -- dummy bid, irrelevant what it is
+                Just (level,suit) -> (level,suit) in
+    if (((model.passes == 1) && (firstBid /= (0,Pass))) || (model.passes == 2)) then False
     else
         let length = List.length model.bidSequence in
         case List.head (List.drop (length - 1) model.bidSequence) of

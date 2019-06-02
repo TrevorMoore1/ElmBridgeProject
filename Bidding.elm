@@ -140,10 +140,21 @@ getNextBids : BiddingRules -> Bid -> List BidDefinition -> Maybe (List BidDefini
 getNextBids bidList bid previousBids =
     case bidList of
         [] -> Nothing
-        (priorityBid)::rest -> let (BidDefinition unwrappedPriorityBid) = priorityBid in   
-                                if bid == unwrappedPriorityBid.bidValue
-                                then Just (previousBids, priorityBid, rest)
-                                else getNextBids rest bid (priorityBid::previousBids)
+        (priorityBid)::rest -> 
+            let (BidDefinition unwrappedPriorityBid) = priorityBid in   
+            if bid == unwrappedPriorityBid.bidValue
+                then Just (previousBids, priorityBid, rest)
+                else getNextBids rest bid (priorityBid::previousBids)
+
+getSubSystem : BiddingRules -> Bid -> BiddingRules
+getSubSystem system bid =
+    case system of
+        [] -> []
+        first::rest ->
+            let (BidDefinition unwrappedFirst) = first in
+            if bid == unwrappedFirst.bidValue
+                then unwrappedFirst.subsequentBids
+                else getSubSystem rest bid
 
 getBid : BiddingRules -> List Bid -> Maybe BidDefinition
 getBid system history =
@@ -164,14 +175,14 @@ handInRange : HandType -> HandRange -> Bool
 handInRange hand range =
        hand.spades >= Tuple.first(range.spades)
     && hand.spades <= Tuple.second(range.spades)
-    && hand.spades >= Tuple.first(range.hearts)
-    && hand.spades <= Tuple.second(range.hearts)
-    && hand.spades >= Tuple.first(range.diamonds)
-    && hand.spades <= Tuple.second(range.diamonds)
-    && hand.spades >= Tuple.first(range.clubs)
-    && hand.spades <= Tuple.second(range.clubs)
-    && hand.spades >= Tuple.first(range.points)
-    && hand.spades <= Tuple.second(range.points)
+    && hand.hearts >= Tuple.first(range.hearts)
+    && hand.hearts <= Tuple.second(range.hearts)
+    && hand.diamonds >= Tuple.first(range.diamonds)
+    && hand.diamonds <= Tuple.second(range.diamonds)
+    && hand.clubs >= Tuple.first(range.clubs)
+    && hand.clubs <= Tuple.second(range.clubs)
+    && hand.points >= Tuple.first(range.points)
+    && hand.points <= Tuple.second(range.points)
 
 --Input: a system, a sequence of bidding
 --Output: the system following that sequence, if it is defined
@@ -233,17 +244,17 @@ stringToType handString acc suit =
         "♣" -> stringToType nextString acc Club
         "A" -> 
             let addedToSuit = addToSuit acc suit in
-            {addedToSuit | points = acc.points + 4}
+            stringToType nextString {addedToSuit | points = acc.points + 4} suit
         "K" -> 
             let addedToSuit = addToSuit acc suit in
-            {addedToSuit | points = acc.points + 3}
+            stringToType nextString {addedToSuit | points = acc.points + 3} suit
         "Q" -> 
             let addedToSuit = addToSuit acc suit in
-            {addedToSuit | points = acc.points + 2}
+            stringToType nextString {addedToSuit | points = acc.points + 2} suit
         "J" -> 
             let addedToSuit = addToSuit acc suit in
-            {addedToSuit | points = acc.points + 1}
-        _ -> addToSuit acc suit
+            stringToType nextString {addedToSuit | points = acc.points + 1} suit
+        _ -> stringToType nextString (addToSuit acc suit) suit
 
 addToSuit : HandType -> Suit -> HandType
 addToSuit acc suit =
