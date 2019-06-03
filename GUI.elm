@@ -1,4 +1,4 @@
-module GUI exposing (main)
+port module GUI exposing (..)
 
 import Bidding exposing (..)
 import Deal exposing (Card, shuffle, separate, handRecords, newDeal)
@@ -13,7 +13,7 @@ import Time exposing (..)
 
 -- MODEL
 
-type Location = Practice | Edit
+type Location = Practice | Edit | Select
 
 type alias Model = {myHand : String,
                     yourHand : String, 
@@ -25,15 +25,27 @@ type alias Model = {myHand : String,
                     bidExplanation : String,
                     debug : String}
 
-initModel = {   myHand = "",
+initModel : Flags -> Model
+initModel flag =
+                 {   myHand = "",
                 yourHand = "",
                 passes = 0,
-                location = Practice,
-                system = [],
+                location = Select,
+                system = case flag of
+                    Nothing -> []
+                    Just flagString -> case stringToSystem flagString of
+                        Nothing -> []
+                        Just biddingSystem -> biddingSystem
+                ,
                 subSystem = [],
                 bidSequence = [],
                 bidExplanation = "",
-                debug = "Debug"}
+                debug = case flag of
+                    Nothing -> "NoFlag"
+                        
+                    Just flagstring -> flagstring
+                }
+
 
 
 -- UPDATE
@@ -83,7 +95,7 @@ update msg model =
         case maybeSystem of
             Nothing -> (model, Cmd.none)
             Just newSystem ->
-                ({model | debug = String.fromInt(List.length(newSystem)), system = newSystem}, Cmd.none)
+                ({model | system = newSystem}, saveSystem (systemToString newSystem))
                 --({model | debug = "Updated System"}, Cmd.none)
     NoUpdate -> (model, Cmd.none)
     DebugString string -> ({model | debug = string}, Cmd.none)
@@ -98,13 +110,14 @@ view model =
     case model.location of
         Practice -> 
             let redeal = Html.button [onClick RequestTime] [Html.text "Redeal"] in
+            let select = Html.button [onClick (Goto Select)] [Html.text "Select System"] in
             let practice = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Practice"] in
             let edit = Html.button [onClick (Goto Edit)] [Html.text "Edit System"] in
             let availableBids = bidDisplay model in
             
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
-            Html.div [] ([  Html.div [] [practice, edit],
+            Html.div [] ([  Html.div [] [select, practice, edit],
                                     redeal,
                                     Html.div [] [Html.br [] []],
                                     Html.div [monoStyle] [Html.text model.myHand],
@@ -115,24 +128,32 @@ view model =
                                     ++ [bidsMadeButtons]
                                     ++ [Html.p [] [Html.text model.bidExplanation]])
         Edit ->
+            let select = Html.button [onClick (Goto Select)] [Html.text "Select System"] in
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
             let buttonList = Html.button [onClick (ChangeBiddingSequence [])] [Html.text "Begin"]::(makeButtonList [] model.bidSequence) in
             let searchBox = Html.textarea [onInput searchBoxFunction] [] in
             let instructions = Html.p [] [Html.text "Create new bid"] in
-            --let debugMessage = Html.p [] [Html.text model.debug] in
+            let debugMessage = Html.p [] [Html.text model.debug] in
             --let debugMessage = Html.textarea [] [Html.text (getLowerPoint model.system [(1,Spade)])] in
             let newBidBox = [Html.textarea [onInput (newBidFunction model.system model.bidSequence)] []] in
             --let newBidBox = [Html.textarea [onInput DebugString] []] in
             let nextBids = displayNextBids model.system model.bidSequence in
-            Html.div [] [   Html.div [] [practice, edit],
+            Html.div [] [   Html.div [] [select, practice, edit],
                             Html.div [] buttonList, 
                             Html.div [] [searchBox], 
                             instructions,
                             Html.div [] newBidBox,
-                            Html.div [] nextBids
-                            --debugMessage
+                            Html.div [] nextBids,
+                            debugMessage
                             ]
+        Select -> 
+            let select = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Select System"] in
+            let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
+            let edit = Html.button [onClick (Goto Edit)] [Html.text "Edit System"] in
+            Html.div [] [ Html.div [] [select, practice, edit]
+
+                        ]
 
 -- PRACTICE MODE FUNCTIONS -----------------------------------------------------------
 
@@ -283,13 +304,14 @@ displayBid system history (BidDefinition bid) =
  let followingBids = Html.button [onClick (ChangeBiddingSequence (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
  let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system (history++[bid.bidValue])))] [Html.text ("Increase Priority")] in
  let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system (history++[bid.bidValue])))] [Html.text ("Decrease Priority")] in
- let meaningTable = Html.div [] (List.map (makeSuitRow system newHistory) [NoTrump, Spade, Heart, Diamond, Club])  in
+ let meaningTable = Html.div [] (List.map (\suit -> Html.div [] (makeSuitRow system newHistory 0 suit)) [NoTrump, Spade, Heart, Diamond, Club])  in
  let delete = Html.button [onClick (UpdateSystem (removeBid system (history++[bid.bidValue])))] [Html.text "Delete Bid"] in
- Html.div [] [followingBids, meaningTable, prioritize, deprioritize, delete]
+ let addMeaning = Html.button [onClick (UpdateSystem (modifyBid system newHistory (\prevDefs -> Just (prevDefs ++ [allHands]))))] [Html.text "Add New Meaning"] in
+ Html.div [] [followingBids, meaningTable, prioritize, deprioritize, addMeaning, delete]
  --Html.div [] [followingBids, modify]
 
-makeSuitRow : BiddingRules -> BidSequence -> Suit -> Html Msg
-makeSuitRow system newHistory suit = 
+makeSuitRow : BiddingRules -> BidSequence -> Int -> Suit -> List (Html Msg)
+makeSuitRow system newHistory meaningNum suit = 
     let label = 
             case suit of
                 NoTrump -> "Points:"
@@ -299,69 +321,161 @@ makeSuitRow system newHistory suit =
                 Club -> "Clubs:"
                 Pass -> ""
     in
-    Html.div [] [Html.text label,
-    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string)))), Html.Attributes.value (getLower suit system newHistory)] [],
-    Html.text "to",
-    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string)))), Html.Attributes.value (getUpper suit system newHistory)] []]
+    case getBid system newHistory of
+        Nothing -> []
+        Just (BidDefinition bidDef) -> case bidDef.requirements of
+            [] -> []
+            meaning::rest -> [Html.text label,
+                             Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string) meaningNum))), Html.Attributes.value (getLower suit system newHistory meaningNum)] [],
+                             Html.text "to",
+                             Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string) meaningNum))), Html.Attributes.value (getUpper suit system newHistory meaningNum)] []]
+                             ++ makeSuitRow [BidDefinition {bidDef | requirements = rest}] (List.take 1 (List.reverse newHistory)) (meaningNum+1) suit
+            
 
-editLowerTo : Suit -> Maybe Int -> List HandRange -> Maybe (List HandRange)
-editLowerTo suit maybeLowerBound handRangeList = 
-    case (maybeLowerBound, handRangeList) of
+   
+editLowerTo : Suit -> Maybe Int -> Int -> List HandRange -> Maybe (List HandRange)
+editLowerTo suit maybeLowerBound meaningNum handRangeList = 
+    let listPrefix = List.take meaningNum handRangeList in
+    case (maybeLowerBound, List.drop meaningNum handRangeList) of
         (Just lowerBound, handRange::rest) -> case suit of
-            NoTrump -> let (prevMin, prevMax) = handRange.points in Just ({handRange | points = (lowerBound, prevMax)}::rest)
-            Spade -> let (prevMin, prevMax) = handRange.spades in Just ({handRange | spades = (lowerBound, prevMax)}::rest)
-            Heart -> let (prevMin, prevMax) = handRange.hearts in Just ({handRange | hearts = (lowerBound, prevMax)}::rest)
-            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just ({handRange | diamonds = (lowerBound, prevMax)}::rest)
-            Club -> let (prevMin, prevMax) = handRange.clubs in Just ({handRange | clubs = (lowerBound, prevMax)}::rest)  
+            NoTrump -> let (prevMin, prevMax) = handRange.points in Just (listPrefix++({handRange | points = (lowerBound, prevMax)}::rest))
+            Spade -> let (prevMin, prevMax) = handRange.spades in Just (listPrefix++({handRange | spades = (lowerBound, prevMax)}::rest))
+            Heart -> let (prevMin, prevMax) = handRange.hearts in Just (listPrefix++({handRange | hearts = (lowerBound, prevMax)}::rest))
+            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just (listPrefix++({handRange | diamonds = (lowerBound, prevMax)}::rest))
+            Club -> let (prevMin, prevMax) = handRange.clubs in Just (listPrefix++({handRange | clubs = (lowerBound, prevMax)}::rest))
             _ -> Just handRangeList
         _ -> Nothing
 
-editUpperTo : Suit -> Maybe Int -> List HandRange -> Maybe (List HandRange)
-editUpperTo suit maybeUpperBound handRangeList = 
-    case (maybeUpperBound, handRangeList) of
+editUpperTo : Suit -> Maybe Int -> Int -> List HandRange -> Maybe (List HandRange)
+editUpperTo suit maybeUpperBound meaningNum handRangeList = 
+    let listPrefix = List.take meaningNum handRangeList in
+    case (maybeUpperBound, List.drop meaningNum handRangeList) of
         (Just upperBound, handRange::rest) -> case suit of
-            NoTrump -> let (prevMin, prevMax) = handRange.points in Just ({handRange | points = (prevMin, upperBound)}::rest)
-            Spade -> let (prevMin, prevMax) = handRange.spades in Just ({handRange | spades = (prevMin, upperBound)}::rest)
-            Heart -> let (prevMin, prevMax) = handRange.hearts in Just ({handRange | hearts = (prevMin, upperBound)}::rest)
-            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just ({handRange | diamonds = (prevMin, upperBound)}::rest)
-            Club -> let (prevMin, prevMax) = handRange.clubs in Just ({handRange | clubs = (prevMin, upperBound)}::rest)  
+            NoTrump -> let (prevMin, prevMax) = handRange.points in Just (listPrefix++({handRange | points = (prevMin, upperBound)}::rest))
+            Spade -> let (prevMin, prevMax) = handRange.spades in Just (listPrefix++({handRange | spades = (prevMin, upperBound)}::rest))
+            Heart -> let (prevMin, prevMax) = handRange.hearts in Just (listPrefix++({handRange | hearts = (prevMin, upperBound)}::rest))
+            Diamond -> let (prevMin, prevMax) = handRange.diamonds in Just (listPrefix++({handRange | diamonds = (prevMin, upperBound)}::rest))
+            Club -> let (prevMin, prevMax) = handRange.clubs in Just (listPrefix++({handRange | clubs = (prevMin, upperBound)}::rest))
             _ -> Just handRangeList
         _ -> Nothing        
 
-getLower : Suit -> BiddingRules -> List Bid -> String
-getLower suit system history =
+getLower : Suit -> BiddingRules -> List Bid -> Int -> String
+getLower suit system history meaningNum =
     case getBid system history of
-        Nothing -> "a"
-        Just (BidDefinition bid) -> case bid.requirements of
-            [] -> "b"
+        Nothing -> "Error 1"
+        Just (BidDefinition bid) -> case List.drop meaningNum bid.requirements of
+            [] -> "Error 2"
             meaning::rest -> case suit of
                 NoTrump -> let (lower, upper) = meaning.points in String.fromInt lower
                 Spade -> let (lower, upper) = meaning.spades in String.fromInt lower
                 Heart -> let (lower, upper) = meaning.hearts in String.fromInt lower
                 Diamond -> let (lower, upper) = meaning.diamonds in String.fromInt lower
                 Club -> let (lower, upper) = meaning.clubs in String.fromInt lower 
-                _ -> "c"
+                _ -> "Error 3"
                      
 
-getUpper : Suit -> BiddingRules -> List Bid -> String
-getUpper suit system history =
+getUpper : Suit -> BiddingRules -> List Bid -> Int -> String
+getUpper suit system history meaningNum =
     case getBid system history of
-        Nothing -> "a"
-        Just (BidDefinition bid) -> case bid.requirements of
-            [] -> "b"
+        Nothing -> "Error 1"
+        Just (BidDefinition bid) -> case List.drop meaningNum bid.requirements of
+            [] -> "Error 2"
             meaning::rest -> case suit of
                 NoTrump -> let (lower, upper) = meaning.points in String.fromInt upper
                 Spade -> let (lower, upper) = meaning.spades in String.fromInt upper
                 Heart -> let (lower, upper) = meaning.hearts in String.fromInt upper
                 Diamond -> let (lower, upper) = meaning.diamonds in String.fromInt upper
                 Club -> let (lower, upper) = meaning.clubs in String.fromInt upper
-                _ -> "c"
+                _ -> "Error 3"
             
 toIntEmpty : String -> Maybe Int
 toIntEmpty string =
     case string of
         "" -> Just 0
         _ -> String.toInt string 
+
+systemToString : BiddingRules -> String
+systemToString system =
+    case system of
+        [] -> ""
+        BidDefinition bidDef :: rest -> bidToBasicString bidDef.bidValue ++ ":" ++ requirementsToString (bidDef.requirements) ++
+            "(" ++ systemToString bidDef.subsequentBids ++ ")" ++ systemToString rest
+            
+
+requirementsToString : List HandRange -> String
+requirementsToString meanings =
+    case meanings of
+        [] -> ""
+        {points , spades, hearts, diamonds, clubs} :: rest -> 
+            let (minP, maxP) = points in
+            let (minS, maxS) = spades in
+            let (minH, maxH) = hearts in
+            let (minD, maxD) = diamonds in
+            let (minC, maxC) = clubs in
+            "p" ++ String.fromInt minP ++ "-" ++ String.fromInt maxP ++
+            "s" ++ String.fromInt minS ++ "-" ++ String.fromInt maxS ++
+            "h" ++ String.fromInt minH ++ "-" ++ String.fromInt maxH ++
+            "d" ++ String.fromInt minD ++ "-" ++ String.fromInt maxD ++
+            "c" ++ String.fromInt minC ++ "-" ++ String.fromInt maxC ++ 
+            case rest of
+                 [] -> ""
+                 _ ->
+                      "|" ++ (requirementsToString rest)
+
+stringToHandRange : String -> Maybe (HandRange)
+stringToHandRange string =
+    case List.filterMap String.toInt (String.split "!" (String.map (\c -> if Char.isDigit c then c else '!') string)) of
+        [pMin, pMax, sMin, sMax, hMin, hMax, dMin, dMax, cMin, cMax] -> Just {points = (pMin, pMax),
+                                                                            spades = (sMin, sMax),
+                                                                            hearts = (hMin, hMax),
+                                                                            diamonds = (dMin, dMax),
+                                                                            clubs = (cMin, cMax)}
+        _ -> Nothing
+
+            
+stringToSystem : String -> Maybe BiddingRules
+stringToSystem systemString =
+    case systemString of
+        "" -> Just []
+        _  -> case getParenIndex systemString 0 Nothing 0 of
+            Nothing -> Nothing
+            Just (lParen, rParen) -> let preParens = String.slice 0 lParen systemString in
+                                     let betweenParens = String.slice (lParen+1) rParen systemString in
+                                     let postParens = String.dropLeft (rParen+1) systemString in
+                                     case (parsePreParens preParens, stringToSystem betweenParens, stringToSystem postParens) of
+                                     (Just (reqs, value), Just between, Just post) -> Just ([BidDefinition {requirements = reqs, bidValue = value, subsequentBids = between}] ++ post)
+                                     _ -> Nothing
+
+                                          
+                                
+parsePreParens : String -> Maybe (List HandRange, Bid)
+parsePreParens string = 
+    case String.split ":" string of
+        valueString::(requirementsString::[]) -> case stringToBid valueString of
+                                                    Just bid -> Just (List.filterMap stringToHandRange (String.split "|" requirementsString), bid)
+                                                    Nothing -> Nothing
+        _ -> Nothing
+
+
+getParenIndex : String -> Int -> Maybe Int -> Int -> Maybe (Int, Int)
+getParenIndex currentString index firstParen parenDepth =
+    if currentString == "" then Nothing else
+    if (parenDepth == 1) && (String.left 1 currentString == ")")
+    then case firstParen of
+        Just firstParenIndex -> Just (firstParenIndex, index)  
+        Nothing -> Nothing
+    else if (String.left 1 currentString == ")")
+         then getParenIndex (String.dropLeft 1 currentString) (index+1) firstParen (parenDepth-1)
+         else if (String.left 1 currentString == "(")
+              then case firstParen of
+                  Nothing -> getParenIndex (String.dropLeft 1 currentString) (index+1) (Just index) (parenDepth+1)
+                  Just _ -> getParenIndex (String.dropLeft 1 currentString) (index+1) firstParen (parenDepth+1)
+              else getParenIndex (String.dropLeft 1 currentString) (index+1) firstParen parenDepth
+                      
+
+        
+
+port saveSystem : String -> Cmd msg
 
 
 -- SUBSCRIPTIONS
@@ -373,12 +487,12 @@ subscriptions model =
 
 -- MAIN
 
-type alias Flags = ()
+type alias Flags = Maybe String
 
 init : Flags -> (Model, Cmd Msg)
-init () = (initModel, Cmd.none)
+init systems = (initModel systems, Cmd.none)
 
-main : Program () Model Msg
+main : Program Flags Model Msg
 main =
   Browser.element {init = init,
                    view = view,

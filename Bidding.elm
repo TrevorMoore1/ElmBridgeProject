@@ -143,7 +143,7 @@ getNextBids bidList bid previousBids =
         (priorityBid)::rest -> let (BidDefinition unwrappedPriorityBid) = priorityBid in   
                                 if bid == unwrappedPriorityBid.bidValue
                                 then Just (previousBids, priorityBid, rest)
-                                else getNextBids rest bid (priorityBid::previousBids)
+                                else getNextBids rest bid (previousBids++[priorityBid])
 
 getBid : BiddingRules -> List Bid -> Maybe BidDefinition
 getBid system history =
@@ -195,6 +195,18 @@ bidToString (number, suit) =
     Club -> String.fromInt number ++ "♣"
     NoTrump -> String.fromInt number ++ "NT"
     Pass -> "Pass"
+
+--Input: A bid
+--Output: A string denoting that bid
+bidToBasicString : Bid -> String
+bidToBasicString (number, suit) =
+ case suit of
+    Spade -> String.fromInt number ++ "S"
+    Heart -> String.fromInt number ++ "H"
+    Diamond -> String.fromInt number ++ "D"
+    Club -> String.fromInt number ++ "C"
+    NoTrump -> String.fromInt number ++ "NT"
+    Pass -> "Pass"    
 
 --Inverse of the above function
 stringToBid : String -> Maybe Bid

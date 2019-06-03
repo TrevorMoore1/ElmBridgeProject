@@ -1,0 +1,26 @@
+<!--- Much is code is copied from Chapters 7.5 and 7.6 of the Beginning Elm book --->
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv='Content-Type' content='text/html; charset=UTF-8'>
+  </head>
+
+  <body>
+    <div id="elm-code-is-loaded-here"></div>
+
+    <script src="GUI.js"></script>
+    <script>
+      var storedState = localStorage.getItem('system-Save');
+      console.log("Retrieved state: ", storedState);
+      var startingState = storedState ? JSON.parse(storedState) : null;
+      var app = Elm.GUI.init({node:  document.getElementById("elm-code-is-loaded-here"), flags: startingState});
+      app.ports.saveSystem.subscribe(function(system) {
+          var systemJson = JSON.stringify(system);
+          localStorage.setItem('system-Save', systemJson);
+          console.log("Saved state: ", systemJson);
+        }
+    );
+    </script>
+  </body>
+</html>
