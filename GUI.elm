@@ -75,7 +75,7 @@ update msg model =
                     (_, Pass) -> {model | subSystem = newSubSystem, passes = model.passes + 1, bidSequence = model.bidSequence ++ [bid]}
                     _ -> {model | subSystem = newSubSystem, passes = 0, bidSequence = model.bidSequence ++ [bid]} in
         case makeBid tempModel.subSystem model.yourType of
-                Nothing -> ({tempModel | bidExplanation = "Sorry, I don't know what to bid!"}, Cmd.none)
+                Nothing -> ({tempModel | passes = model.passes + 2, bidExplanation = "Sorry, I don't know what to bid!"}, Cmd.none)
                 Just (newBid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [newBid]}, Cmd.none)
     DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
     ChangeBiddingSequence bids ->
