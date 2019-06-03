@@ -128,7 +128,13 @@ view model =
                                 ++ (String.fromInt model.yourType.points) ++ " points"
                         else    "" in
             let explanationString = model.bidExplanation in
-            Html.div [] ([  Html.div [] [practice, edit],
+            Html.div [  Html.Attributes.style "height" "300px",
+                        Html.Attributes.style "width" "300px",
+                        Html.Attributes.style "top" "50%",
+                        Html.Attributes.style "left" "50%",
+                        Html.Attributes.style "position" "fixed",
+                        Html.Attributes.style "transform" "translate(-50%, -60%)"]
+                    ([  Html.div [] [practice, edit],
                                     redeal,
                                     Html.div [] [Html.br [] []],
                                     yourHtmlHand,
@@ -150,7 +156,13 @@ view model =
             let newBidBox = [Html.textarea [onInput (newBidFunction model.system model.bidSequence)] []] in
             --let newBidBox = [Html.textarea [onInput DebugString] []] in
             let nextBids = displayNextBids model.system model.bidSequence in
-            Html.div [] [   Html.div [] [practice, edit],
+            Html.div [  Html.Attributes.style "height" "300px",
+                        Html.Attributes.style "width" "300px",
+                        Html.Attributes.style "top" "50%",
+                        Html.Attributes.style "left" "50%",
+                        Html.Attributes.style "position" "fixed",
+                        Html.Attributes.style "transform" "translate(-50%, -60%)"] 
+                     [   Html.div [] [practice, edit],
                             Html.div [] buttonList, 
                             Html.div [] [searchBox], 
                             instructions,
@@ -319,19 +331,28 @@ displayBid system history (BidDefinition bid) =
 
 makeSuitRow : BiddingRules -> BidSequence -> Suit -> Html Msg
 makeSuitRow system newHistory suit = 
+    let monoStyle = Html.Attributes.style "font-family" "courier" in
     let label = 
             case suit of
-                NoTrump -> "Points:"
-                Spade -> "Spades:"    
-                Heart -> "Hearts:"
-                Diamond -> "Diamonds:"
-                Club -> "Clubs:"
-                Pass -> ""
-    in
-    Html.div [] [Html.text label,
-    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string)))), Html.Attributes.value (getLower suit system newHistory)] [],
-    Html.text "to",
-    Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string)))), Html.Attributes.value (getUpper suit system newHistory)] []]
+                NoTrump -> "Points: "
+                Spade   -> "Spades: "    
+                Heart   -> "Hearts: "
+                Diamond -> "Diamonds: "
+                Club    -> "Clubs: "
+                Pass    -> "" in
+    let filler =
+            case suit of
+                NoTrump -> ".."
+                Spade   -> ".."
+                Heart   -> ".."
+                Diamond -> ""
+                Club    -> "..."
+                Pass    -> "" in
+    Html.div [monoStyle] [  Html.text label, 
+                            Html.span [Html.Attributes.style "color" "white"] [Html.text filler],
+                            Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string)))), Html.Attributes.value (getLower suit system newHistory), Html.Attributes.style "width" "5%"] [],
+                            Html.text " to ",
+                            Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string)))), Html.Attributes.value (getUpper suit system newHistory), Html.Attributes.style "width" "5%"] []]
 
 editLowerTo : Suit -> Maybe Int -> List HandRange -> Maybe (List HandRange)
 editLowerTo suit maybeLowerBound handRangeList = 
