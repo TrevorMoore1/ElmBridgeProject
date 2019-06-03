@@ -67,16 +67,26 @@ update msg model =
                     Nothing -> Debug.todo "yourHandString error"
                     Just yourHand -> yourHand in
         let yourHandType = stringToType yourHandString {spades = 0, hearts = 0, diamonds = 0, clubs = 0, points = 0} Pass in
-        ({model | myHand = myHandString, yourHand = yourHandString, yourType = yourHandType, passes = 0, bidSequence = [], subSystem = model.system}, Cmd.none)
+        ({model | myHand = myHandString, yourHand = yourHandString, yourType = yourHandType, passes = 0, bidSequence = [], subSystem = model.system, bidExplanation = ""}, Cmd.none)
     BidsMade bid ->
         let newSubSystem = getSubSystem model.subSystem bid in
         let tempModel = 
                 case bid of
-                    (_, Pass) -> {model | subSystem = newSubSystem, passes = model.passes + 1, bidSequence = model.bidSequence ++ [bid]}
-                    _ -> {model | subSystem = newSubSystem, passes = 0, bidSequence = model.bidSequence ++ [bid]} in
+                    (_, Pass) -> {model | subSystem = newSubSystem, passes = model.passes + 1, bidSequence = model.bidSequence ++ [bid], bidExplanation = explanationToString bid model.bidSequence model.system}
+                    _ -> {model | subSystem = newSubSystem, passes = 0, bidSequence = model.bidSequence ++ [bid], bidExplanation = explanationToString bid model.bidSequence model.system} in
         case makeBid tempModel.subSystem model.yourType of
-                Nothing -> ({tempModel | passes = model.passes + 2, bidExplanation = "Sorry, I don't know what to bid!"}, Cmd.none)
-                Just (newBid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [newBid]}, Cmd.none)
+                Nothing -> 
+                    let newBidExplanation =
+                            let firstBid = 
+                                    case List.head tempModel.bidSequence of
+                                        Nothing -> (1,Club) -- dummy bid, irrelevant what it is
+                                        Just (level,suit) -> (level,suit) in
+                            if (((tempModel.passes == 1) && (firstBid /= (0,Pass))) || (tempModel.passes == 2)) 
+                                then ""
+                                else "Sorry, I don't know what to bid!" in
+                    ({tempModel | passes = model.passes + 2, bidExplanation = newBidExplanation}, Cmd.none)
+                Just ((level,Pass), subsequentBids) -> ({tempModel | subSystem = subsequentBids,passes = tempModel.passes + 1, bidSequence = tempModel.bidSequence ++ [(level,Pass)], bidExplanation = (explanationToString (level,Pass) (tempModel.bidSequence ++ [(level,Pass)]) model.system)}, Cmd.none)
+                Just (newBid, subsequentBids) -> ({tempModel | subSystem = subsequentBids, bidSequence = tempModel.bidSequence ++ [newBid], bidExplanation = (explanationToString newBid (tempModel.bidSequence ++ [newBid]) model.system)}, Cmd.none)
     DisplayExplanation expl -> ({model | bidExplanation = expl}, Cmd.none)
     ChangeBiddingSequence bids ->
         ({model | bidSequence = bids}, Cmd.none)
@@ -105,18 +115,30 @@ view model =
             
             let monoStyle = Html.Attributes.style "font-family" "courier" in
             let bidsMadeButtons = Html.div [] (makeBidsMadeButtons model model.bidSequence) in
-            let stringOfType = (String.fromInt model.yourType.spades) ++ " spades, " ++ (String.fromInt model.yourType.hearts) ++ " hearts, " ++ (String.fromInt model.yourType.diamonds) ++ " diamonds, " ++ (String.fromInt model.yourType.clubs) ++ " clubs, " ++ (String.fromInt model.yourType.points) ++ " points" in
+            let yourHtmlHand =
+                    if model.passes >= 2
+                        then Html.div [monoStyle] [Html.text model.yourHand]
+                        else Html.div [] [Html.br [] []] in
+            let stringOfType =  
+                    if model.passes >= 2
+                        then    (String.fromInt model.yourType.spades) ++ " spades, " 
+                                ++ (String.fromInt model.yourType.hearts) ++ " hearts, " 
+                                ++ (String.fromInt model.yourType.diamonds) ++ " diamonds, " 
+                                ++ (String.fromInt model.yourType.clubs) ++ " clubs, " 
+                                ++ (String.fromInt model.yourType.points) ++ " points"
+                        else    "" in
+            let explanationString = model.bidExplanation in
             Html.div [] ([  Html.div [] [practice, edit],
                                     redeal,
                                     Html.div [] [Html.br [] []],
+                                    yourHtmlHand,
                                     Html.div [monoStyle] [Html.text model.myHand],
-                                    Html.div [monoStyle] [Html.text model.yourHand],
-                                    Html.div [] [Html.text stringOfType],
+                                    --Html.div [] [Html.text stringOfType],
                                     Html.div [] [Html.br [] []]]
                                     ++ availableBids
                                     ++ [Html.br [] []]
                                     ++ [bidsMadeButtons]
-                                    ++ [Html.p [] [Html.text model.bidExplanation]])
+                                    ++ [Html.p [] [Html.text explanationString]])
         Edit ->
             let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
             let edit = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Edit System"] in
