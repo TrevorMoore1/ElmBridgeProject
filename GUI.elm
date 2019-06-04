@@ -23,7 +23,9 @@ type alias Model = {myHand : String,
                     subSystem : BiddingRules,
                     bidSequence : BidSequence,
                     bidExplanation : String,
-                    debug : String}
+                    debug : String,
+                    systemList : List (String, BiddingRules),
+                    systemIndex : Int}
 
 initModel : Flags -> Model
 initModel flag =
@@ -31,11 +33,11 @@ initModel flag =
                 yourHand = "",
                 passes = 0,
                 location = Select,
-                system = case flag of
+                system = [],
+                systemIndex = 0,
+                systemList = case flag of
                     Nothing -> []
-                    Just flagString -> case stringToSystem flagString of
-                        Nothing -> []
-                        Just biddingSystem -> biddingSystem
+                    Just flagString -> parseWithNames flagString ""
                 ,
                 subSystem = [],
                 bidSequence = [],
@@ -43,7 +45,7 @@ initModel flag =
                 debug = case flag of
                     Nothing -> "NoFlag"
                         
-                    Just flagstring -> flagstring
+                    Just flagstring -> String.fromInt (List.length (stringToSystemList flagstring))
                 }
 
 
@@ -60,6 +62,11 @@ type Msg =
   | UpdateSystem (Maybe BiddingRules)
   | NoUpdate
   | DebugString String
+  | PracticeIn Int
+  | EditIn Int
+  | CreateSystem
+  | DeleteSystem Int
+  | UpdateName Int String
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model =
@@ -94,11 +101,34 @@ update msg model =
     UpdateSystem maybeSystem ->
         case maybeSystem of
             Nothing -> (model, Cmd.none)
-            Just newSystem ->
-                ({model | system = newSystem}, saveSystem (systemToString newSystem))
-                --({model | debug = "Updated System"}, Cmd.none)
+            Just newSystem -> 
+                let (systemName, oldSystem) = case List.drop model.systemIndex model.systemList of
+                                                    [] -> ("", [])
+                                                    elem::rest -> elem
+                in 
+                let newSystemList = (List.take model.systemIndex model.systemList) ++ [(systemName, newSystem)] ++ (List.drop ((model.systemIndex)+1) model.systemList) in 
+                ({model | system = newSystem, systemList = newSystemList, debug = (namedSystemListToString newSystemList) ++ (String.fromInt model.systemIndex) }, saveSystems (namedSystemListToString newSystemList))
+                --({model | debug = "Updat}, Cmd.none)
     NoUpdate -> (model, Cmd.none)
     DebugString string -> ({model | debug = string}, Cmd.none)
+    PracticeIn index -> ({model | passes = 0, location = Practice, bidSequence = [], systemIndex = index,
+                        system = case List.head (List.drop index model.systemList) of
+                            Nothing -> []    
+                            Just (_, bidSystem) -> bidSystem
+                        }, Cmd.none)
+    EditIn index -> ({model | passes = 0, location = Edit, bidSequence = [], systemIndex = index,
+                        system = case List.head (List.drop index model.systemList) of
+                            Nothing -> []    
+                            Just (_, bidSystem) -> bidSystem
+                        }, Cmd.none)
+    CreateSystem -> let newSystemList = model.systemList ++ [("", [])] in ({model | systemList = newSystemList}, saveSystems (namedSystemListToString newSystemList))
+    DeleteSystem index -> let newSystemList = List.take index model.systemList ++ List.drop (index+1) model.systemList in ({model | systemList = newSystemList}, saveSystems (namedSystemListToString newSystemList))
+    UpdateName index name -> let (systemName, oldSystem) = case List.take index model.systemList of
+                                                    [] -> ("", [])
+                                                    elem::rest -> elem
+                             in 
+                             let newSystemList = (List.take index model.systemList) ++ [(name, oldSystem)] ++ (List.drop (index+1) model.systemList) in
+                             ({model | systemList = newSystemList, debug = (name ++ " | " ++ String.fromInt index ++ " | " ++ String.concat (List.map (\(x,y) -> x) newSystemList))}, saveSystems (namedSystemListToString newSystemList))
         
 
 
@@ -144,16 +174,29 @@ view model =
                             Html.div [] [searchBox], 
                             instructions,
                             Html.div [] newBidBox,
-                            Html.div [] nextBids,
-                            debugMessage
+                            Html.div [] nextBids
                             ]
         Select -> 
-            let select = Html.button [Html.Attributes.style "visibility" "hidden"] [Html.text "Select System"] in
-            let practice = Html.button [onClick (Goto Practice)] [Html.text "Practice"] in
-            let edit = Html.button [onClick (Goto Edit)] [Html.text "Edit System"] in
-            Html.div [] [ Html.div [] [select, practice, edit]
+            Html.div [] ((createSystemSelect model.systemList 0) ++ [Html.button [onClick CreateSystem] [Html.text "Create New System"]])
 
-                        ]
+
+-- SELECT MODE FUNCTIONS ------------------------------------------------------------
+
+createSystemSelect : List (String, BiddingRules) -> Int -> List (Html Msg)
+createSystemSelect systemList index = case systemList of
+    [] -> []    
+    system::rest -> let (systemName, oldSystem) = case systemList of
+                                                                        [] -> ("", [])
+                                                                        elem::_ -> elem
+                                     in 
+                     [Html.div [] ([Html.input [onInput (UpdateName index), Html.Attributes.value systemName] []] ++
+                                   [Html.text (" : ")] ++
+                                   [Html.button [onClick (PracticeIn index)] [Html.text "Practice"]] ++ 
+                                   [Html.button [onClick (EditIn index)] [Html.text "Edit"]] ++
+                                   [Html.button [onClick (DeleteSystem index)] [Html.text "Delete"]])] ++
+                                  createSystemSelect rest (index+1)
+
+
 
 -- PRACTICE MODE FUNCTIONS -----------------------------------------------------------
 
@@ -304,14 +347,29 @@ displayBid system history (BidDefinition bid) =
  let followingBids = Html.button [onClick (ChangeBiddingSequence (history++[bid.bidValue]))] [Html.text (bidToString bid.bidValue)] in
  let prioritize = Html.button [onClick (UpdateSystem (prioritizeBid system (history++[bid.bidValue])))] [Html.text ("Increase Priority")] in
  let deprioritize = Html.button [onClick (UpdateSystem (deprioritizeBid system (history++[bid.bidValue])))] [Html.text ("Decrease Priority")] in
- let meaningTable = Html.div [] (List.map (\suit -> Html.div [] (makeSuitRow system newHistory 0 suit)) [NoTrump, Spade, Heart, Diamond, Club])  in
+ let meaningTable = Html.div [] (List.map (\suit -> Html.div [] (makeSuitRow system newHistory suit)) [NoTrump, Spade, Heart, Diamond, Club])  in
  let delete = Html.button [onClick (UpdateSystem (removeBid system (history++[bid.bidValue])))] [Html.text "Delete Bid"] in
  let addMeaning = Html.button [onClick (UpdateSystem (modifyBid system newHistory (\prevDefs -> Just (prevDefs ++ [allHands]))))] [Html.text "Add New Meaning"] in
- Html.div [] [followingBids, meaningTable, prioritize, deprioritize, addMeaning, delete]
+ let deleteList = makeDeleteList system newHistory bid.requirements 0 in
+ Html.div [] ([followingBids, meaningTable, prioritize, deprioritize, addMeaning] ++ deleteList ++ [delete])
  --Html.div [] [followingBids, modify]
 
-makeSuitRow : BiddingRules -> BidSequence -> Int -> Suit -> List (Html Msg)
-makeSuitRow system newHistory meaningNum suit = 
+makeDeleteList : BiddingRules -> BidSequence -> List HandRange -> Int -> List (Html Msg)
+makeDeleteList system newHistory requirements index =
+    case requirements of
+        [] -> []
+        _::rest -> [Html.button [onClick (UpdateSystem (modifyBid system newHistory (\prevDefs -> Just((List.take index prevDefs) ++ (List.drop (index+1) prevDefs)))))]
+                                [Html.text ("Delete Meaning " ++ String.fromInt (index + 1))]] ++ makeDeleteList system newHistory rest (index+1)
+
+
+makeSuitRow : BiddingRules -> BidSequence -> Suit -> List (Html Msg)
+makeSuitRow system newHistory suit = 
+    case getBid system newHistory of
+        Nothing -> []
+        Just (BidDefinition bidDef) -> makeSuitRowReqs system newHistory 0 suit bidDef.requirements
+
+makeSuitRowReqs : BiddingRules -> BidSequence -> Int -> Suit -> (List HandRange) -> List (Html Msg)
+makeSuitRowReqs system newHistory meaningNum suit reqs = 
     let label = 
             case suit of
                 NoTrump -> "Points:"
@@ -320,17 +378,13 @@ makeSuitRow system newHistory meaningNum suit =
                 Diamond -> "Diamonds:"
                 Club -> "Clubs:"
                 Pass -> ""
-    in
-    case getBid system newHistory of
-        Nothing -> []
-        Just (BidDefinition bidDef) -> case bidDef.requirements of
+    in case reqs of
             [] -> []
             meaning::rest -> [Html.text label,
                              Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editLowerTo suit (toIntEmpty string) meaningNum))), Html.Attributes.value (getLower suit system newHistory meaningNum)] [],
                              Html.text "to",
                              Html.input [onInput (\string -> UpdateSystem (modifyBid system newHistory (editUpperTo suit (toIntEmpty string) meaningNum))), Html.Attributes.value (getUpper suit system newHistory meaningNum)] []]
-                             ++ makeSuitRow [BidDefinition {bidDef | requirements = rest}] (List.take 1 (List.reverse newHistory)) (meaningNum+1) suit
-            
+                             ++ makeSuitRowReqs system newHistory (meaningNum+1) suit rest
 
    
 editLowerTo : Suit -> Maybe Int -> Int -> List HandRange -> Maybe (List HandRange)
@@ -394,6 +448,21 @@ toIntEmpty string =
         "" -> Just 0
         _ -> String.toInt string 
 
+systemListToString : List BiddingRules -> String
+systemListToString systems = 
+    case systems of
+        [] -> ""
+        system::[] -> systemToString system   
+        system::rest -> (systemToString system) ++ "Y" ++ (systemListToString rest)
+
+namedSystemListToString : List (String, BiddingRules) -> String
+namedSystemListToString systems = 
+    case systems of
+        [] -> ""
+        (name,system)::[] -> (String.fromInt (String.length name)) ++ "L" ++ name ++ systemToString system
+        (name,system)::rest -> (String.fromInt (String.length name)) ++ "L" ++ name ++ systemToString system ++ "Y" ++ namedSystemListToString rest
+            
+
 systemToString : BiddingRules -> String
 systemToString system =
     case system of
@@ -446,7 +515,9 @@ stringToSystem systemString =
                                      (Just (reqs, value), Just between, Just post) -> Just ([BidDefinition {requirements = reqs, bidValue = value, subsequentBids = between}] ++ post)
                                      _ -> Nothing
 
-                                          
+stringToSystemList : String -> List BiddingRules
+stringToSystemList string = 
+    List.filterMap stringToSystem (String.split "Y" string)                                           
                                 
 parsePreParens : String -> Maybe (List HandRange, Bid)
 parsePreParens string = 
@@ -472,10 +543,24 @@ getParenIndex currentString index firstParen parenDepth =
                   Just _ -> getParenIndex (String.dropLeft 1 currentString) (index+1) firstParen (parenDepth+1)
               else getParenIndex (String.dropLeft 1 currentString) (index+1) firstParen parenDepth
                       
+parseWithNames : String -> String -> List (String, BiddingRules)
+parseWithNames string digitString = case String.uncons string of
+    Nothing -> []   
+    Just ('L', rest) -> case String.toInt digitString of
+        Nothing -> []
+        Just nameLength -> let name = String.left nameLength rest in
+                           let leftover = String.dropLeft nameLength rest in
+                           let (systemString, nextSystem) = case String.indices "Y" leftover of
+                                [] -> (leftover, "")
+                                index::_ -> (String.left index leftover, String.dropLeft (index+1) leftover)
+                           in case stringToSystem systemString of
+                                Nothing -> []
+                                Just system -> [(name, system)] ++ parseWithNames nextSystem ""
+    Just (digit, rest) -> parseWithNames rest (String.cons digit digitString)
 
         
 
-port saveSystem : String -> Cmd msg
+port saveSystems : String -> Cmd msg
 
 
 -- SUBSCRIPTIONS

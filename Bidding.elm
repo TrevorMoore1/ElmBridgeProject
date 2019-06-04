@@ -27,7 +27,7 @@ defineBid : BiddingRules -> BidSequence -> List HandRange -> Maybe BiddingRules
 defineBid system history bidMeaning =
     case history of
         []               -> Nothing
-        lastBid::[]      -> Just ((BidDefinition{requirements = bidMeaning, bidValue = lastBid, subsequentBids = []})::system)
+        lastBid::[]      -> Just (system++[BidDefinition{requirements = bidMeaning, bidValue = lastBid, subsequentBids = []}])
         firstBid::rest -> 
             case getNextBids system firstBid [] of
                 Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case defineBid foundBid.subsequentBids rest bidMeaning of

@@ -15,7 +15,7 @@
       console.log("Retrieved state: ", storedState);
       var startingState = storedState ? JSON.parse(storedState) : null;
       var app = Elm.GUI.init({node:  document.getElementById("elm-code-is-loaded-here"), flags: startingState});
-      app.ports.saveSystem.subscribe(function(system) {
+      app.ports.saveSystems.subscribe(function(system) {
           var systemJson = JSON.stringify(system);
           localStorage.setItem('system-Save', systemJson);
           console.log("Saved state: ", systemJson);
