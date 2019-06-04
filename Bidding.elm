@@ -27,7 +27,7 @@ defineBid : BiddingRules -> BidSequence -> List HandRange -> Maybe BiddingRules
 defineBid system history bidMeaning =
     case history of
         []               -> Nothing
-        lastBid::[]      -> Just ((BidDefinition{requirements = bidMeaning, bidValue = lastBid, subsequentBids = []})::system)
+        lastBid::[]      -> Just (system++[BidDefinition{requirements = bidMeaning, bidValue = lastBid, subsequentBids = []}])
         firstBid::rest -> 
             case getNextBids system firstBid [] of
                 Just (higherPriorityBids, BidDefinition foundBid, lowerPriorityBids) -> case defineBid foundBid.subsequentBids rest bidMeaning of
@@ -144,7 +144,8 @@ getNextBids bidList bid previousBids =
             let (BidDefinition unwrappedPriorityBid) = priorityBid in   
             if bid == unwrappedPriorityBid.bidValue
                 then Just (previousBids, priorityBid, rest)
-                else getNextBids rest bid (priorityBid::previousBids)
+                else getNextBids rest bid (previousBids++[priorityBid])
+--NOTE: priorityBid::previousBids or previousBids++[priorityBid]?
 
 getSubSystem : BiddingRules -> Bid -> BiddingRules
 getSubSystem system bid =
@@ -206,6 +207,18 @@ bidToString (number, suit) =
     Club -> String.fromInt number ++ "♣"
     NoTrump -> String.fromInt number ++ "NT"
     Pass -> "Pass"
+
+--Input: A bid
+--Output: A string denoting that bid
+bidToBasicString : Bid -> String
+bidToBasicString (number, suit) =
+ case suit of
+    Spade -> String.fromInt number ++ "S"
+    Heart -> String.fromInt number ++ "H"
+    Diamond -> String.fromInt number ++ "D"
+    Club -> String.fromInt number ++ "C"
+    NoTrump -> String.fromInt number ++ "NT"
+    Pass -> "Pass"    
 
 --Inverse of the above function
 stringToBid : String -> Maybe Bid
