@@ -13,11 +13,7 @@ Upon loading the page, any previously created systems will be loaded from local 
 
 In edit mode, the user can define new bids and bid sequences. The program will begin at the beginning of the auction. Here the user can define the opening bids by typing the bid name (e.g "1H") into the create new bid box and press enter. This will create a bid, which by default has one meaning. The user can then edit the fields of "Points", "Spades", "Hearts", "Diamonds", and "Clubs" to define the minimum and maximum number of each of these the bid can show. If the user would like a bid to show one hand type or another, they can add an additional meaning to the bid. They can create multiple bids in the same way and change the order them. If a hand could make multiple bids, the highest one of the list will be made. The user can also define bids after a specific sequence in order to define follow up bids. In order to do so, they must navigate to a speicifc bid sequence and then define the bids. They can do this either by typing the sequence in the topmost navigation box (e.g. "1H-1S-1NT-2C") or by clicking on the bids already defined. The list of bids in current sequence is displayed at the top and the user can navigate to any of them by clicking on them.
 
-
-
-
-
-
+In practice mode, the user can practice bidding with computer using the system defined in edit mode. The user begins by clicking redeal to deal a new hand, and it displays the hand at the top. The user can then bid by clicking on the buttons, and mousing over each bid shows what it means. After the user bids, the computer will bid, as displayed in the bidding sequence at the bottom. The meaning of the bid is also displayed. This continues until the auction ends, either by someone passing or if the computer does not know what to bid becasue follow-up bids have not been defined, in which case it shows the message "I don't know what to bid". In either case, once the auction is over the computer's hand is revealed above the user's hand, allowing the user to think about whether the system was effective for bidding that hand. The user can then start again by dealing a new hand.
 
 -----------------------------
 
