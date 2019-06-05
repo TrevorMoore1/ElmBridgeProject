@@ -1,0 +1,33 @@
+To compile the code, use the command
+elm make GUI.elm --output GUI.js
+
+Then run the code through index.html
+
+-------------------------------
+
+Description of the functionality
+
+Our program allows users to define Bridge bidding systems and practicing bidding them with the computer. 
+
+Upon loading the page, any previously created systems will be loaded from local storage and the user will be in the select system view. Here the user can create new systems, rename them, and enter edit or pratice mode with them. 
+
+In edit mode, the user can define new bids and bid sequences. The program will begin at the beginning of the auction. Here the user can define the opening bids by typing the bid name (e.g "1H") into the create new bid box and press enter. This will create a bid, which by default has one meaning. The user can then edit the fields of "Points", "Spades", "Hearts", "Diamonds", and "Clubs" to define the minimum and maximum number of each of these the bid can show. If the user would like a bid to show one hand type or another, they can add an additional meaning to the bid. They can create multiple bids in the same way and change the order them. If a hand could make multiple bids, the highest one of the list will be made. The user can also define bids after a specific sequence in order to define follow up bids. In order to do so, they must navigate to a speicifc bid sequence and then define the bids. They can do this either by typing the sequence in the topmost navigation box (e.g. "1H-1S-1NT-2C") or by clicking on the bids already defined. The list of bids in current sequence is displayed at the top and the user can navigate to any of them by clicking on them.
+
+
+
+
+
+
+
+-----------------------------
+
+Achievement of our goals
+
+I think overall we achieved most of our goals that we had planned out in our project proposal. We can input a system and bid with the computer as well as save the system and work on it over multiple sessions. We didn't quite get to implementing automatic checking of where the system gets confused and the useability of the edit interface could be improved a little, but overall we accompished a lot on a pretty complex topic and pretty much implemented what we had planned. One of the major obstacles to using the program is that it takes an extremely long time to input a full system, but I don't think there is much that can be done to still allow for full flexibility while also making it quick to use.
+
+
+-------------------------------
+
+Reflections on the experience
+
+In general, planning out structrues and how they would be accessed and updated was helpful. The primary strucutre we used a tree (not necessarily binary) where a node would contain a bid, its requirements, and then a list of trees of the follow up bids. This structure worked well for allowing the computer to make bids quickly and easily becasue it could search through the list of children, find the relevant bid, and return the subtree containing that bid. A more difficult thing to do was to add, modify, or remvoe a bid we needed to traverse the entire tree to the relevant location, make the modification, and put it back together. I found myself writing this process out over and over again and it would have been helpful to plan out a better way to this generally and possibly pick a data structure that would make this easier to do. However, I would say overall most of the things we implemented were not too difficult to figure conceptually what to do but were tedious to implement. A good example of this is turning a system into a string in order to save it to local storage and then parse the string back in to a system, especially when the system includes a name that could include arbitrary characters. I found using elm for this project to be pretty nice, it was easy to create a web interface and the functional nature of elm made debugging fairly easy, even if some functions were more difficult to implement.
